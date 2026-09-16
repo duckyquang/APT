@@ -7,6 +7,7 @@ import { Chat } from './Chat.tsx'
 import { Today } from './views/Today.tsx'
 import { Plan } from './views/Plan.tsx'
 import { Settings } from './views/Settings.tsx'
+import { History } from './views/History.tsx'
 import type { Exercise, Videos, Profile } from './types.ts'
 
 export const TABS = ['today', 'plan', 'history', 'settings'] as const
@@ -83,7 +84,7 @@ export function App() {
       <Settings key={profile.updated_at} userId={session.user.id} profile={profile} apiKey={apiKey}
         onKey={k => { setApiKey(k); bump() }} onChange={bump} />
     ) :
-    <p className="muted">History lands in the next phase.</p>
+    <History version={version} />
 
   return (
     <div className="shell">
