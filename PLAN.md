@@ -153,6 +153,16 @@ Components, all hand-written: tile, ring (inline SVG `stroke-dasharray`), checkl
 **Phase 0, plumbing.** Supabase project. `schema.sql` with the seven tables, the view, RLS, two private buckets. Google OAuth wired: a Google Cloud web client with authorized JavaScript origin `https://duckyquang.github.io` and authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, client ID and secret pasted into Supabase, Supabase Site URL and Redirect URL set to `https://duckyquang.github.io/APT/`. Vite React TS scaffold with `base: '/APT/'`, hash tabs, dark shell, tokens, meta CSP, manifest, the profile upsert on first session. Deploy workflow (checkout v7, setup-node v7, configure-pages v6, upload-pages-artifact v5, deploy-pages v5, Pages source set to GitHub Actions, Enforce HTTPS on).
 Exit test: sign in on a phone and a laptop from the live URL, and once more from the home-screen icon on the phone.
 
+Console steps for Phase 0 (one time, by hand):
+
+1. supabase.com, New project, name `apt`, region nearest you, note the database password somewhere safe (never needed by the app).
+2. Project Settings, API: copy the Project URL and the `sb_publishable_` key into the two constants at the top of `src/db.ts`.
+3. SQL Editor, paste `supabase/schema.sql`, Run.
+4. console.cloud.google.com, APIs & Services, Credentials, Create credentials, OAuth client ID, type Web application. Authorized JavaScript origins: `https://duckyquang.github.io` and `http://localhost:5173`. Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`. Copy the client ID and secret.
+5. Supabase, Authentication, Providers, Google: enable, paste client ID and secret.
+6. Supabase, Authentication, URL Configuration: Site URL `https://duckyquang.github.io/APT/`; Redirect URLs add `https://duckyquang.github.io/APT/` and `http://localhost:5173/APT/`.
+7. Push `src/db.ts`; wait for the deploy; open the live URL and sign in on a phone and a laptop.
+
 **Phase 1, the trainer.** Settings: key entry with the validation ping, model dropdown, profile form. `ai.ts` with streaming, the tool loop, message persistence with the pairing and trimming rules, the system prompt builder, "Clear chat". Tools `update_profile`, `search_exercises`, `save_workout_plan`, `save_meal_plan`. Catalog bundled, `videos.json` seeded with about 50 common movements. Onboarding via the missing-fields block. Plan view with instructions, stills, embed or search link, Meals tab.
 Covers features 1, 2, 9, 10 and the chat side of 4 and 8. "Ate this" and weight quick-entry land in Phase 2.
 
