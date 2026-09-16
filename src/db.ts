@@ -121,5 +121,5 @@ export async function signedUrls(bucket: 'meals' | 'progress', paths: string[]) 
   if (!paths.length) return {}
   const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, 3600)
   if (error) throw new Error(error.message)
-  return Object.fromEntries(data.filter(d => d.path && d.signedUrl).map(d => [d.path as string, d.signedUrl]))
+  return Object.fromEntries(data.filter(d => d.path && d.signedUrl).map(d => [d.path as string, d.signedUrl as string]))
 }
