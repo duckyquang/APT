@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MealEstimate } from '../types.ts'
+import { errorMessage } from '../ai.ts'
 
 const EMPTY: MealEstimate = { items: [], totals: { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0 }, confidence: 'low', assumptions: '' }
 
@@ -16,6 +17,7 @@ export function MealDialog(p: {
   const [name, setName] = useState('')
   const [t, setT] = useState(est.totals)
   const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
   const preview = useMemo(() => (p.photo ? URL.createObjectURL(p.photo) : ''), [p.photo])
 
   useEffect(() => { ref.current?.showModal(); return () => ref.current?.close() }, [])
@@ -34,7 +36,8 @@ export function MealDialog(p: {
 
   async function save() {
     setSaving(true)
-    try { await p.onSave(name.trim() || 'Meal', { ...est, totals: t }) } finally { setSaving(false) }
+    setErr('')
+    try { await p.onSave(name.trim() || 'Meal', { ...est, totals: t }) } catch (e) { setErr(errorMessage(e)) } finally { setSaving(false) }
   }
 
   return (
@@ -43,7 +46,7 @@ export function MealDialog(p: {
         <div className="row"><h2>Log a meal</h2><button type="button" className="ghost" onClick={p.onClose}>Close</button></div>
         {preview && <img className="preview" src={preview} alt="" />}
         {p.analyzing && <p className="muted">Looking at the photo…</p>}
-        {p.error && <p className="error">{p.error}</p>}
+        {(p.error || err) && <p className="error">{p.error || err}</p>}
         {!p.analyzing && (
           <>
             {p.estimate && (
