@@ -10,6 +10,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "0.126.0",
     "@supabase/supabase-js": "2.116.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
