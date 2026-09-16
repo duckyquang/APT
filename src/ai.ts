@@ -155,6 +155,31 @@ export const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  {
+    name: 'log_meal',
+    description: 'Log food the user describes in text (not photos). Estimate the visible portion honestly.',
+    input_schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['name', 'kcal', 'protein_g', 'carbs_g', 'fat_g'],
+      properties: {
+        name: str,
+        ...macros,
+        fiber_g: num,
+        time: { type: 'string', description: 'HH:MM local, default now' },
+      },
+    },
+  },
+  {
+    name: 'log_water',
+    description: 'Log water the user drank.',
+    input_schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ml'],
+      properties: { ml: num, time: { type: 'string', description: 'HH:MM local, default now' } },
+    },
+  },
 ]
 
 const nutr = { kcal: num, protein_g: num, carbs_g: num, fat_g: num, fiber_g: num }

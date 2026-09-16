@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type Anthropic from '@anthropic-ai/sdk'
+import { dayKey } from './dates.ts'
 import type { Profile, PlanRow, DailyTotals, MealRow, WorkoutPlan, MealPlan } from './types.ts'
 
 // both public by design; RLS is the wall
@@ -88,4 +89,37 @@ export async function insertMessages(rows: Anthropic.MessageParam[]) {
 
 export async function clearChat(userId: string) {
   unwrap(await sb.from('messages').delete().eq('user_id', userId))
+}
+
+export type NewMeal = Omit<MealRow, 'id' | 'eaten_at'> & { eaten_at?: string }
+
+export async function insertMeal(row: NewMeal) {
+  unwrap(await sb.from('meals').insert(row))
+}
+
+export async function deleteMeal(id: string) {
+  unwrap(await sb.from('meals').delete().eq('id', id))
+}
+
+export async function insertWater(ml: number, at = new Date()) {
+  unwrap(await sb.from('water').insert({ ml, at: at.toISOString(), date: dayKey(at) }))
+}
+
+export async function dayLog(date: string) {
+  const rows = unwrap(
+    await sb.from('daily_logs').select('weight_kg, progress_photo_path').eq('date', date),
+  ) as { weight_kg: number | null; progress_photo_path: string | null }[]
+  return rows[0] ?? null
+}
+
+export async function uploadPhoto(bucket: 'meals' | 'progress', path: string, blob: Blob) {
+  const { error } = await sb.storage.from(bucket).upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+  if (error) throw new Error(error.message)
+}
+
+export async function signedUrls(bucket: 'meals' | 'progress', paths: string[]) {
+  if (!paths.length) return {}
+  const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, 3600)
+  if (error) throw new Error(error.message)
+  return Object.fromEntries(data.filter(d => d.path && d.signedUrl).map(d => [d.path as string, d.signedUrl]))
 }

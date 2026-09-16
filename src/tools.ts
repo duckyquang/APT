@@ -1,7 +1,7 @@
 import type { ToolRunner } from './ai.ts'
 import { searchExercises, type Search } from './catalog.ts'
 import { pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan } from './logic.ts'
-import { loadProfile, updateProfile, latestWeight, upsertDailyLog, savePlan } from './db.ts'
+import { loadProfile, updateProfile, latestWeight, upsertDailyLog, savePlan, insertMeal, insertWater } from './db.ts'
 import { dayKey } from './dates.ts'
 import type { Exercise, Videos, Profile, WorkoutPlan, MealPlan } from './types.ts'
 
@@ -12,6 +12,13 @@ export async function applyProfile(userId: string, patch: Partial<Profile>, weig
   const missing = missingFields(p, !!(await latestWeight()))
   if (!p.onboarded_at && !missing.length) await updateProfile(userId, { onboarded_at: new Date().toISOString() })
   return missing
+}
+
+function atTime(hhmm?: string) {
+  const d = new Date()
+  const m = hhmm?.match(/^(\d{1,2}):(\d{2})$/)
+  if (m) d.setHours(+m[1], +m[2], 0, 0)
+  return d
 }
 
 export function makeToolRunner(deps: { userId: string; catalog: Exercise[]; videos: Videos; onChange: () => void }): ToolRunner {
@@ -42,6 +49,23 @@ export function makeToolRunner(deps: { userId: string; catalog: Exercise[]; vide
           await savePlan('meal', plan.title, { days: plan.days })
           deps.onChange()
           return { result: 'saved' }
+        }
+        case 'log_meal': {
+          const m = input as { name: string; kcal: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g?: number; time?: string }
+          const at = atTime(m.time)
+          await insertMeal({
+            date: dayKey(at), eaten_at: at.toISOString(), photo_path: null, name: m.name, items: [],
+            kcal: Math.round(m.kcal), protein_g: m.protein_g, carbs_g: m.carbs_g, fat_g: m.fat_g, fiber_g: m.fiber_g ?? 0,
+            confidence: null, assumptions: null, source: 'agent',
+          })
+          deps.onChange()
+          return { result: 'logged' }
+        }
+        case 'log_water': {
+          const w = input as { ml: number; time?: string }
+          await insertWater(Math.round(w.ml), atTime(w.time))
+          deps.onChange()
+          return { result: 'logged' }
         }
         default:
           return { result: `unknown tool ${name}`, error: true }
