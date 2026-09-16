@@ -180,6 +180,46 @@ export const TOOLS: Anthropic.Tool[] = [
       properties: { ml: num, time: { type: 'string', description: 'HH:MM local, default now' } },
     },
   },
+  {
+    name: 'log_workout',
+    description: 'Log a workout the user describes in text. Use exercise_id from search_exercises when you know it; otherwise leave it out.',
+    input_schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['day_name', 'exercises'],
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD, default today' },
+        day_name: str,
+        duration_min: num,
+        notes: str,
+        exercises: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['name', 'sets'],
+            properties: {
+              exercise_id: str,
+              name: str,
+              sets: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: false, required: ['reps', 'weight_kg'], properties: { reps: num, weight_kg: num } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: 'get_history',
+    description: 'Read daily totals and workouts for the last N days (default 14, max 90). Set include_meals for the meal list.',
+    input_schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { days: num, include_meals: { type: 'boolean' } },
+    },
+  },
 ]
 
 const nutr = { kcal: num, protein_g: num, carbs_g: num, fat_g: num, fiber_g: num }

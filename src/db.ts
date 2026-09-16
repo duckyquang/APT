@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type Anthropic from '@anthropic-ai/sdk'
 import { dayKey } from './dates.ts'
-import type { Profile, PlanRow, DailyTotals, MealRow, WorkoutPlan, MealPlan } from './types.ts'
+import type { Profile, PlanRow, DailyTotals, MealRow, WorkoutPlan, MealPlan, WorkoutRow } from './types.ts'
 
 // both public by design; RLS is the wall
 export const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co'
@@ -122,4 +122,35 @@ export async function signedUrls(bucket: 'meals' | 'progress', paths: string[]) 
   const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, 3600)
   if (error) throw new Error(error.message)
   return Object.fromEntries(data.filter(d => d.path && d.signedUrl).map(d => [d.path as string, d.signedUrl as string]))
+}
+
+export async function dayWorkout(date: string) {
+  const rows = unwrap(await sb.from('workouts').select('*').eq('date', date).order('created_at').limit(1)) as WorkoutRow[]
+  return rows[0] ?? null
+}
+
+export async function upsertWorkout(row: WorkoutRow) {
+  unwrap(await sb.from('workouts').upsert(row, { onConflict: 'id' }))
+}
+
+export async function recentWorkouts(limit = 10) {
+  return unwrap(await sb.from('workouts').select('*').order('date', { ascending: false }).limit(limit)) as WorkoutRow[]
+}
+
+export async function rangeTotals(from: string, to: string) {
+  return unwrap(await sb.from('daily_totals').select('*').gte('date', from).lte('date', to).order('date', { ascending: false })) as DailyTotals[]
+}
+
+export async function rangeWorkouts(from: string, to: string) {
+  return unwrap(await sb.from('workouts').select('*').gte('date', from).lte('date', to).order('date', { ascending: false })) as WorkoutRow[]
+}
+
+export async function rangeMeals(from: string, to: string) {
+  return unwrap(await sb.from('meals').select('*').gte('date', from).lte('date', to).order('eaten_at')) as MealRow[]
+}
+
+export async function rangePhotos(from: string, to: string) {
+  return unwrap(
+    await sb.from('daily_logs').select('date, progress_photo_path').gte('date', from).lte('date', to).not('progress_photo_path', 'is', null).order('date'),
+  ) as { date: string; progress_photo_path: string }[]
 }

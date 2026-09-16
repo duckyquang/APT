@@ -14,6 +14,10 @@ function chip(b: Anthropic.ToolUseBlock) {
     case 'search_exercises': return `Searched exercises: ${[i.q, i.muscle, i.equipment].filter(Boolean).join(' ')}`
     case 'save_workout_plan': return `Saved workout plan: ${i.title}`
     case 'save_meal_plan': return `Saved meal plan: ${i.title}`
+    case 'log_meal': return `Logged meal: ${i.name}`
+    case 'log_water': return `Logged ${i.ml} ml water`
+    case 'log_workout': return `Logged workout: ${i.day_name}`
+    case 'get_history': return 'Checked history'
     default: return b.name
   }
 }

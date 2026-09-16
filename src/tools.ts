@@ -1,7 +1,7 @@
 import type { ToolRunner } from './ai.ts'
 import { searchExercises, type Search } from './catalog.ts'
 import { pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan } from './logic.ts'
-import { loadProfile, updateProfile, latestWeight, upsertDailyLog, savePlan, insertMeal, insertWater } from './db.ts'
+import { loadProfile, updateProfile, latestWeight, upsertDailyLog, savePlan, insertMeal, insertWater, upsertWorkout, rangeTotals, rangeWorkouts, rangeMeals } from './db.ts'
 import { dayKey } from './dates.ts'
 import type { Exercise, Videos, Profile, WorkoutPlan, MealPlan } from './types.ts'
 
@@ -66,6 +66,29 @@ export function makeToolRunner(deps: { userId: string; catalog: Exercise[]; vide
           await insertWater(Math.round(w.ml), atTime(w.time))
           deps.onChange()
           return { result: 'logged' }
+        }
+        case 'log_workout': {
+          const w = input as { date?: string; day_name: string; duration_min?: number; notes?: string; exercises: { exercise_id?: string; name: string; sets: { reps: number; weight_kg: number }[] }[] }
+          const date = /^\d{4}-\d{2}-\d{2}$/.test(w.date ?? '') ? w.date! : dayKey()
+          await upsertWorkout({
+            id: crypto.randomUUID(), date, plan_id: null, day_name: w.day_name,
+            exercises: w.exercises.map(x => ({ exercise_id: x.exercise_id ?? null, name: x.name, sets: x.sets.map(s => ({ reps: s.reps, weight_kg: s.weight_kg, done: true })) })),
+            duration_min: w.duration_min ?? null, notes: w.notes ?? null, created_at: new Date().toISOString(),
+          })
+          deps.onChange()
+          return { result: 'logged' }
+        }
+        case 'get_history': {
+          const h = input as { days?: number; include_meals?: boolean }
+          const days = Math.min(90, Math.max(1, Math.round(h.days ?? 14)))
+          const to = dayKey()
+          const from = dayKey(new Date(Date.now() - days * 864e5))
+          const [totals, workouts, meals] = await Promise.all([rangeTotals(from, to), rangeWorkouts(from, to), h.include_meals ? rangeMeals(from, to) : []])
+          return { result: JSON.stringify({
+            totals,
+            workouts: workouts.map(x => ({ date: x.date, day: x.day_name, min: x.duration_min, exercises: x.exercises.map(e => `${e.name}: ${e.sets.filter(s => s.done).map(s => `${s.reps}@${s.weight_kg}`).join(' ')}`) })),
+            meals: meals.map(m => ({ date: m.date, name: m.name, kcal: m.kcal })),
+          }) }
         }
         default:
           return { result: `unknown tool ${name}`, error: true }
