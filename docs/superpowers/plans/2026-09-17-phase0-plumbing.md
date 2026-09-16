@@ -536,11 +536,11 @@ insert into auth.users (id, instance_id, aud, role, email) values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@test'),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@test');
 set role authenticated;
-select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
 insert into public.water (date, ml) values ('2026-09-17', 500), ('2026-09-17', 250);
 insert into public.daily_logs (date, weight_kg) values ('2026-09-17', 80.5);
 select 'a_sees', water_ml, weight_kg, workout_done from public.daily_totals;
-select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', false);
 select 'b_sees', count(*) from public.daily_totals;
 select 'b_water', count(*) from public.water;
 reset role;
@@ -552,17 +552,17 @@ Expected output, exactly:
 ```
 INSERT 0 2
 SET
-
+{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}
 INSERT 0 2
 INSERT 0 1
 a_sees|750|80.5|f
-
+{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}
 b_sees|0
 b_water|0
 RESET
 ```
 
-(The blank lines are `set_config`'s empty result. If the two inserts under `set role` fail with "permission denied", grant first as postgres: `grant usage on schema public to authenticated; grant all on all tables in schema public to authenticated;` which the hosted project does by default.)
+(`set_config` echoes the value it set. The third argument must be `false`: psql autocommits each statement, so a transaction-local setting would be gone before the insert and RLS would reject it.)
 
 - [ ] **Step 5: Stop the local stack and commit**
 
