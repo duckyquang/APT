@@ -68,3 +68,21 @@ export type MealRow = {
   assumptions: string | null
   source: 'photo' | 'manual' | 'agent' | 'plan'
 }
+
+export type MealEstimateItem = {
+  name: string
+  portion_estimate: string
+  grams: number
+  kcal: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  fiber_g: number
+}
+
+export type MealEstimate = {
+  items: MealEstimateItem[]
+  totals: { kcal: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number }
+  confidence: 'low' | 'medium' | 'high'
+  assumptions: string
+}

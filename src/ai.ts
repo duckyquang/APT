@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema'
 import { dayKey, weekdayOf, WEEKDAYS } from './dates.ts'
-import type { Profile, PlanRow, DailyTotals, MealRow } from './types.ts'
+import { toBase64 } from './image.ts'
+import type { Profile, PlanRow, DailyTotals, MealRow, MealEstimate } from './types.ts'
 
 export const MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'] as const
 
@@ -27,8 +29,8 @@ export function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : String(e)
 }
 
-const str = { type: 'string' }
-const num = { type: 'number' }
+const str = { type: 'string' } as const
+const num = { type: 'number' } as const
 const weekday = { type: 'string', enum: [...WEEKDAYS] }
 const macros = { kcal: num, protein_g: num, carbs_g: num, fat_g: num }
 
@@ -154,6 +156,48 @@ export const TOOLS: Anthropic.Tool[] = [
     },
   },
 ]
+
+const nutr = { kcal: num, protein_g: num, carbs_g: num, fat_g: num, fiber_g: num }
+const MEAL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'totals', 'confidence', 'assumptions'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'portion_estimate', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'],
+        properties: { name: str, portion_estimate: str, grams: num, ...nutr },
+      },
+    },
+    totals: { type: 'object', additionalProperties: false, required: ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'], properties: nutr },
+    confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    assumptions: str,
+  },
+} as const
+
+export async function analyzeMeal(jpeg: Blob, note: string, model: string): Promise<MealEstimate> {
+  const data = await toBase64(jpeg)
+  const res = await client().messages.parse({
+    model,
+    max_tokens: 4096,
+    system: 'You estimate nutrition from a photo of a meal. Estimate the actual visible portion of each item in grams; do not default to standard serving sizes. Give kcal, protein, carbs, fat and fiber per item, then totals. Be honest in confidence and list your assumptions in one or two sentences.',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
+        { type: 'text', text: note.trim() ? `Note from the user: ${note.trim()}` : 'Estimate this meal.' },
+      ],
+    }],
+    output_config: { format: jsonSchemaOutputFormat(MEAL_SCHEMA) },
+  })
+  if (!res.parsed_output) {
+    throw new Error(res.stop_reason === 'refusal' ? 'The model declined to analyse this photo.' : 'No estimate came back. Try again.')
+  }
+  return res.parsed_output as MealEstimate
+}
 
 const PERSONA = `You are APT, the user's personal trainer. Direct, warm, specific. Metric units unless the profile says imperial.
 

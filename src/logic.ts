@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { WEEKDAYS, type Weekday } from './dates.ts'
-import type { Exercise, Profile, WorkoutPlan, MealPlan } from './types.ts'
+import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate } from './types.ts'
 
 const hasBlock = (m: Anthropic.MessageParam, type: string) =>
   Array.isArray(m.content) && m.content.some(b => b.type === type)
@@ -73,4 +73,26 @@ export function validateMealPlan(plan: MealPlan) {
     }
   }
   return errors
+}
+
+const nz = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0)
+const r1 = (n: number) => Math.round(n * 10) / 10
+
+// structured outputs cannot express minimum, so clamp here; totals come from items when there are any
+export function sanitizeMeal(est: MealEstimate): MealEstimate {
+  const items = (est.items ?? []).map(i => ({
+    ...i, grams: nz(i.grams), kcal: nz(i.kcal), protein_g: nz(i.protein_g), carbs_g: nz(i.carbs_g), fat_g: nz(i.fat_g), fiber_g: nz(i.fiber_g),
+  }))
+  const sum = (k: 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g' | 'fiber_g') => items.reduce((a, i) => a + i[k], 0)
+  const t = est.totals ?? { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0 }
+  const totals = items.length
+    ? { kcal: Math.round(sum('kcal')), protein_g: r1(sum('protein_g')), carbs_g: r1(sum('carbs_g')), fat_g: r1(sum('fat_g')), fiber_g: r1(sum('fiber_g')) }
+    : { kcal: Math.round(nz(t.kcal)), protein_g: r1(nz(t.protein_g)), carbs_g: r1(nz(t.carbs_g)), fat_g: r1(nz(t.fat_g)), fiber_g: r1(nz(t.fiber_g)) }
+  let assumptions = (est.assumptions ?? '').trim()
+  const fromMacros = 4 * totals.protein_g + 4 * totals.carbs_g + 9 * totals.fat_g
+  if (totals.kcal && Math.abs(fromMacros - totals.kcal) > totals.kcal * 0.3) {
+    totals.kcal = Math.round(fromMacros)
+    assumptions = `${assumptions} Calories recomputed from macros.`.trim()
+  }
+  return { items, totals, confidence: est.confidence ?? 'low', assumptions }
 }
