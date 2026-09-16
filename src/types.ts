@@ -86,3 +86,16 @@ export type MealEstimate = {
   confidence: 'low' | 'medium' | 'high'
   assumptions: string
 }
+
+export type WorkoutSet = { reps: number; weight_kg: number; done: boolean }
+export type WorkoutExercise = { exercise_id: string | null; name: string; sets: WorkoutSet[] }
+export type WorkoutRow = {
+  id: string
+  date: string
+  plan_id: string | null
+  day_name: string | null
+  exercises: WorkoutExercise[]
+  duration_min: number | null
+  notes: string | null
+  created_at: string
+}

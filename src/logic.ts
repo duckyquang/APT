@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { WEEKDAYS, type Weekday } from './dates.ts'
-import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate } from './types.ts'
+import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate, WorkoutRow, WorkoutExercise } from './types.ts'
 
 const hasBlock = (m: Anthropic.MessageParam, type: string) =>
   Array.isArray(m.content) && m.content.some(b => b.type === type)
@@ -95,4 +95,29 @@ export function sanitizeMeal(est: MealEstimate): MealEstimate {
     assumptions = `${assumptions} Calories recomputed from macros.`.trim()
   }
   return { items, totals, confidence: est.confidence ?? 'low', assumptions }
+}
+
+export function parseReps(s: string) {
+  const m = String(s).match(/\d+/)
+  return m ? +m[0] : 0
+}
+
+export function lastWeights(rows: WorkoutRow[]) {
+  const map = new Map<string, number>()
+  for (const r of rows) {
+    for (const x of r.exercises) {
+      if (!x.exercise_id || map.has(x.exercise_id)) continue
+      const w = [...x.sets].reverse().find(s => s.weight_kg > 0)?.weight_kg
+      if (w) map.set(x.exercise_id, w)
+    }
+  }
+  return map
+}
+
+export function sessionFromPlan(day: WorkoutPlan['days'][number], last: Map<string, number>): WorkoutExercise[] {
+  return day.exercises.map(x => ({
+    exercise_id: x.exercise_id,
+    name: x.name,
+    sets: Array.from({ length: x.sets }, () => ({ reps: parseReps(x.reps), weight_kg: last.get(x.exercise_id) ?? 0, done: false })),
+  }))
 }

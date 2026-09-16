@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type Anthropic from '@anthropic-ai/sdk'
-import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal } from './logic.ts'
-import type { Exercise, Profile, MealEstimate } from './types.ts'
+import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan } from './logic.ts'
+import type { Exercise, Profile, MealEstimate, WorkoutRow } from './types.ts'
 
 const user = (text: string): Anthropic.MessageParam => ({ role: 'user', content: [{ type: 'text', text }] })
 const assistant = (text: string): Anthropic.MessageParam => ({ role: 'assistant', content: [{ type: 'text', text }] })
@@ -91,4 +91,29 @@ test('sanitizeMeal recomputes kcal from macros when they disagree badly', () => 
 test('sanitizeMeal keeps clamped totals when there are no items', () => {
   const s = sanitizeMeal({ ...est, items: [], totals: { kcal: 300, protein_g: -2, carbs_g: 30, fat_g: 20, fiber_g: 0 } })
   assert.deepEqual(s.totals, { kcal: 300, protein_g: 0, carbs_g: 30, fat_g: 20, fiber_g: 0 })
+})
+
+test('parseReps takes the first number', () => {
+  assert.equal(parseReps('8-10'), 8)
+  assert.equal(parseReps('5'), 5)
+  assert.equal(parseReps('AMRAP'), 0)
+})
+
+const w = (date: string, id: string, weights: number[]): WorkoutRow => ({
+  id: date, date, plan_id: null, day_name: null, duration_min: 40, notes: null, created_at: date,
+  exercises: [{ exercise_id: id, name: id, sets: weights.map(weight_kg => ({ reps: 5, weight_kg, done: true })) }],
+})
+
+test('lastWeights takes the newest non-zero weight per exercise', () => {
+  const m = lastWeights([w('2026-09-16', 'Barbell_Squat', [100, 0]), w('2026-09-10', 'Barbell_Squat', [90]), w('2026-09-09', 'Pushups', [0])])
+  assert.equal(m.get('Barbell_Squat'), 100)
+  assert.equal(m.has('Pushups'), false)
+})
+
+test('sessionFromPlan builds sets with last weights prefilled', () => {
+  const s = sessionFromPlan(
+    { weekday: 'mon', name: 'Legs', exercises: [{ exercise_id: 'Barbell_Squat', name: 'Barbell Squat', sets: 3, reps: '6-8', rest_s: 120 }] },
+    new Map([['Barbell_Squat', 100]]))
+  assert.deepEqual(s, [{ exercise_id: 'Barbell_Squat', name: 'Barbell Squat', sets: [
+    { reps: 6, weight_kg: 100, done: false }, { reps: 6, weight_kg: 100, done: false }, { reps: 6, weight_kg: 100, done: false } ] }])
 })
