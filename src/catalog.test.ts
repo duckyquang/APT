@@ -28,3 +28,16 @@ test('entries with a video come first, then shorter names', () => {
 test('limit', () => {
   assert.equal(searchExercises(catalog, {}, {}, 2).length, 2)
 })
+import { readFileSync } from 'node:fs'
+
+const real: Exercise[] = JSON.parse(readFileSync(new URL('../public/exercises.json', import.meta.url), 'utf8'))
+const videos: Record<string, string> = JSON.parse(readFileSync(new URL('../public/videos.json', import.meta.url), 'utf8'))
+
+test('every curated video key is a real exercise id', () => {
+  const ids = new Set(real.map(e => e.id))
+  assert.deepEqual(Object.keys(videos).filter(k => !ids.has(k)), [])
+})
+
+test('search over the real catalog finds the barbell squat first', () => {
+  assert.equal(searchExercises(real, { q: 'barbell squat' }, videos)[0].id, 'Barbell_Squat')
+})

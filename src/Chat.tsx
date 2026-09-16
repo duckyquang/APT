@@ -97,6 +97,7 @@ export function Chat(p: { userId: string; catalog: Exercise[]; videos: Videos; o
         <button type="button" className="ghost" onClick={clear} disabled={!rows.length}>Clear chat</button>
       </div>
       <div className="chat-log">
+        {rows.length === 0 && !busy && <p className="muted">Say hi. APT will ask what it needs to know, then write your first week.</p>}
         {rows.map(m => <Bubble key={m.id} m={m} />)}
         {live && <div className="bubble assistant">{live}</div>}
         {busy && !live && <div className="muted">thinking…</div>}
