@@ -1,0 +1,9 @@
+{
+  "name": "APT",
+  "short_name": "APT",
+  "display": "browser",
+  "start_url": "/APT/#today",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": []
+}
