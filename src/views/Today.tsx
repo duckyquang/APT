@@ -151,8 +151,8 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
         <div className="row wrap">
           <button type="button" onClick={() => addWater(250)}>+250 ml</button>
           <button type="button" onClick={() => addWater(500)}>+500 ml</button>
-          <input type="number" value={water} onChange={e => setWater(e.target.value)} placeholder="ml" className="short" />
-          <button type="button" onClick={() => { if (+water > 0) { addWater(+water); setWater('') } }}>Add</button>
+          <input type="number" step="1" inputMode="numeric" value={water} onChange={e => setWater(e.target.value)} placeholder="ml" className="short" />
+          <button type="button" onClick={() => { const ml = Math.round(+water); if (ml > 0) { addWater(ml); setWater('') } }}>Add</button>
         </div>
       </section>
 
