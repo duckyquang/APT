@@ -5,6 +5,7 @@ import { sanitizeMeal } from '../logic.ts'
 import { resizeToJpeg, coverCrop } from '../image.ts'
 import { dayKey, weekdayOf } from '../dates.ts'
 import { MealDialog } from './MealDialog.tsx'
+import { WorkoutCard } from './WorkoutCard.tsx'
 import type { Profile, DailyTotals, MealRow, MealPlan, PlanMeal, MealEstimate } from '../types.ts'
 
 function Ring({ value, max, label, unit }: { value: number; max?: number; label: string; unit: string }) {
@@ -119,6 +120,8 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
         <Ring value={t.water_ml} max={target.water_ml ?? 2500} label="water" unit="ml" />
         <div className="macros muted">P {Math.round(t.protein_g)} g · C {Math.round(t.carbs_g)} g · F {Math.round(t.fat_g)} g</div>
       </section>
+
+      <WorkoutCard version={p.version} onChange={p.onChange} />
 
       <section className="tile">
         <div className="row"><h2>Meals</h2>
