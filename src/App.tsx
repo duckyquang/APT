@@ -4,6 +4,7 @@ import { sb, signIn, ensureProfile, loadProfile } from './db.ts'
 import { getKey } from './ai.ts'
 import { loadCatalog } from './catalog.ts'
 import { Chat } from './Chat.tsx'
+import { Today } from './views/Today.tsx'
 import { Plan } from './views/Plan.tsx'
 import { Settings } from './views/Settings.tsx'
 import type { Exercise, Videos, Profile } from './types.ts'
@@ -31,9 +32,12 @@ export function App() {
     const { data: auth } = sb.auth.onAuthStateChange((_event, s) => setSession(s))
     const onHash = () => setTab(tabFromHash())
     addEventListener('hashchange', onHash)
+    const onVisible = () => { if (document.visibilityState === 'visible') setVersion(v => v + 1) }
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
       auth.subscription.unsubscribe()
       removeEventListener('hashchange', onHash)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [])
 
@@ -73,12 +77,13 @@ export function App() {
   if (!profile || !data) return null
 
   const view =
+    tab === 'today' ? <Today userId={session.user.id} profile={profile} version={version} onChange={bump} /> :
     tab === 'plan' ? <Plan catalog={data.catalog} videos={data.videos} version={version} /> :
     tab === 'settings' ? (
       <Settings key={profile.updated_at} userId={session.user.id} profile={profile} apiKey={apiKey}
         onKey={k => { setApiKey(k); bump() }} onChange={bump} />
     ) :
-    <p className="muted">{tab === 'today' ? 'Today' : 'History'} lands in the next phase.</p>
+    <p className="muted">History lands in the next phase.</p>
 
   return (
     <div className="shell">
