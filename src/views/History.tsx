@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { rangeTotals, rangeWorkouts, rangeMeals, rangePhotos, signedUrls } from '../db.ts'
 import { dayKey } from '../dates.ts'
 import type { DailyTotals, WorkoutRow, MealRow } from '../types.ts'
+import { makeVideo } from '../video.ts'
 
 const month = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 const dayLabel = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })
@@ -12,6 +13,8 @@ export function History(p: { version: number }) {
   const [meals, setMeals] = useState<MealRow[]>([])
   const [photos, setPhotos] = useState<{ date: string; url: string }[]>([])
   const [error, setError] = useState('')
+  const [video, setVideo] = useState<{ blob: Blob; url: string } | null>(null)
+  const [rendering, setRendering] = useState(0)
 
   useEffect(() => {
     const to = dayKey()
@@ -25,6 +28,33 @@ export function History(p: { version: number }) {
       .catch(e => setError(e.message))
   }, [p.version])
 
+  async function render() {
+    setError('')
+    setRendering(1)
+    try {
+      const blob = await makeVideo(photos.map(x => ({ url: x.url, label: x.date })), setRendering)
+      setVideo(v => { if (v) URL.revokeObjectURL(v.url); return { blob, url: URL.createObjectURL(blob) } })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRendering(0)
+    }
+  }
+
+  function share() {
+    if (!video) return
+    const ext = video.blob.type.includes('mp4') ? 'mp4' : 'webm'
+    const file = new File([video.blob], `transformation.${ext}`, { type: video.blob.type })
+    if (navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {})
+    } else {
+      const a = document.createElement('a')
+      a.href = video.url
+      a.download = file.name
+      a.click()
+    }
+  }
+
   const months = [...new Set(totals.map(t => t.date.slice(0, 7)))]
 
   return (
@@ -34,6 +64,14 @@ export function History(p: { version: number }) {
         <section className="tile">
           <h2>Progress</h2>
           <div className="strip">{photos.map(x => <figure key={x.date}><img src={x.url} alt="" loading="lazy" /><figcaption className="muted">{x.date.slice(5)}</figcaption></figure>)}</div>
+          <div className="row wrap">
+            <button type="button" onClick={render} disabled={photos.length < 2 || rendering > 0}>
+              {rendering > 0 ? `Rendering ${rendering}/${photos.length}, keep this tab open` : 'Make video'}
+            </button>
+            {video && <button type="button" className="primary" onClick={share}>Share or save</button>}
+          </div>
+          {photos.length < 2 && <p className="muted">Two or more days of photos make a video.</p>}
+          {video && <video className="preview" src={video.url} controls playsInline />}
         </section>
       )}
       {totals.length === 0 && <p className="muted">Nothing logged in the last 90 days.</p>}

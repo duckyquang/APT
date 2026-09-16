@@ -126,3 +126,4 @@ img.preview { width: 100%; max-height: 240px; object-fit: cover; border-radius: 
 .strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .strip figure { margin: 0; flex: 0 0 auto; text-align: center; }
 .strip img { width: 96px; aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--r); display: block; }
+video.preview { width: 100%; max-width: 320px; aspect-ratio: 4 / 5; border-radius: var(--r-lg); background: var(--surface2); display: block; margin-top: 12px; }
