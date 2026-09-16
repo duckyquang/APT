@@ -48,9 +48,10 @@ export function WorkoutCard(p: { version: number; onChange: () => void }) {
 
   function finish() {
     const minutes = Math.max(1, Math.round((Date.now() - new Date(current.created_at).getTime()) / 60000))
-    save({ ...current, duration_min: minutes })
+    const next = { ...current, duration_min: minutes }
+    setRow(next)
     setRest(0)
-    p.onChange()
+    upsertWorkout(next).then(p.onChange).catch(e => setError(e.message))
   }
 
   const ticked = current.exercises.reduce((a, x) => a + x.sets.filter(s => s.done).length, 0)
