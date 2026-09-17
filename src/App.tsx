@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { sb, signIn, ensureProfile, loadProfile, SUPABASE_URL } from './db.ts'
+import { signIn, ensureProfile, loadProfile, getSession, onAuthChange, startDemo, DEMO, SUPABASE_URL } from './db.ts'
 import { getKey } from './ai.ts'
 import { loadCatalog } from './catalog.ts'
 import { Chat } from './Chat.tsx'
@@ -19,7 +18,7 @@ export function tabFromHash(hash = location.hash): Tab {
 }
 
 export function App() {
-  const [session, setSession] = useState<Session | null>()
+  const [session, setSession] = useState<{ user: { id: string } } | null>()
   const [tab, setTab] = useState<Tab>(tabFromHash)
   const [chatOpen, setChatOpen] = useState(false)
   const [ready, setReady] = useState(false)
@@ -31,14 +30,14 @@ export function App() {
   const bump = () => setVersion(v => v + 1)
 
   useEffect(() => {
-    sb.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: auth } = sb.auth.onAuthStateChange((_event, s) => setSession(s))
+    getSession().then(setSession)
+    const offAuth = onAuthChange(setSession)
     const onHash = () => setTab(tabFromHash())
     addEventListener('hashchange', onHash)
     const onVisible = () => { if (document.visibilityState === 'visible') bump() }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
-      auth.subscription.unsubscribe()
+      offAuth()
       removeEventListener('hashchange', onHash)
       document.removeEventListener('visibilitychange', onVisible)
     }
@@ -76,11 +75,11 @@ export function App() {
       <main className="gate">
         <h1>APT</h1>
         <p className="muted">A personal trainer that runs on your own API key.</p>
-        {SUPABASE_URL.includes('YOUR-PROJECT') ? (
-          <p className="muted">No Supabase project wired up yet. See PLAN.md, Phase 0.</p>
-        ) : (
-          <button className="primary" onClick={() => signIn().then(({ error }) => error && setError(error.message))}>Sign in with Google</button>
+        {!SUPABASE_URL.includes('YOUR-PROJECT') && (
+          <button className="primary" onClick={() => signIn().then(({ error }) => error && setError(error))}>Sign in with Google</button>
         )}
+        <button type="button" onClick={startDemo}>Try the demo</button>
+        <p className="muted">The demo keeps everything in this browser. You still bring your own API key.</p>
         {error && <p className="error">{error}</p>}
       </main>
     )
@@ -109,6 +108,7 @@ export function App() {
           {TABS.map(t => (
             <a key={t} href={'#' + t} aria-current={t === tab ? 'page' : undefined}>{t}</a>
           ))}
+          {DEMO && <span className="pill">demo</span>}
         </nav>
       </header>
       <main>

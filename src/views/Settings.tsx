@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { MODELS, validateKey, setKey, errorMessage } from '../ai.ts'
-import { updateProfile, signOut } from '../db.ts'
+import { updateProfile, signOut, resetDemo, DEMO } from '../db.ts'
 import { applyProfile } from '../tools.ts'
 import { WEEKDAYS, type Weekday } from '../dates.ts'
 import { LEVELS, IN, toKg } from '../logic.ts'
@@ -135,7 +135,14 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
         </div>
       </form>
 
-      <button type="button" onClick={() => signOut().catch(e => setStatus(errorMessage(e)))}>Sign out</button>
+      {DEMO ? (
+        <div className="row">
+          <button type="button" onClick={() => signOut()}>Leave demo</button>
+          <button type="button" className="ghost" onClick={() => { if (confirm('Erase all demo data in this browser?')) resetDemo() }}>Erase demo data</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => signOut().catch(e => setStatus(errorMessage(e)))}>Sign out</button>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { WEEKDAYS, type Weekday } from './dates.ts'
-import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate, WorkoutRow, WorkoutExercise } from './types.ts'
+import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate, WorkoutRow, WorkoutExercise, MealRow, DailyTotals } from './types.ts'
 
 const hasBlock = (m: Anthropic.MessageParam, type: string) =>
   Array.isArray(m.content) && m.content.some(b => b.type === type)
@@ -116,6 +116,20 @@ export function sanitizeMeal(est: MealEstimate): MealEstimate {
     assumptions = `${assumptions} Calories and macros disagree; macros alone suggest about ${Math.round(fromMacros)} kcal.`.trim()
   }
   return { items, totals, confidence: est.confidence ?? 'low', assumptions }
+}
+
+export const zeroTotals = (date: string): DailyTotals =>
+  ({ date, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, water_ml: 0, workout_done: false, weight_kg: null })
+
+// the same roll-up as the daily_totals view, for demo mode
+export function computeTotals(date: string, meals: MealRow[], water: { ml: number }[], workouts: WorkoutRow[], log?: { weight_kg: number | null }): DailyTotals {
+  const sum = (k: 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g') => meals.reduce((a, m) => a + Number(m[k] ?? 0), 0)
+  return {
+    date, kcal: Math.round(sum('kcal')), protein_g: sum('protein_g'), carbs_g: sum('carbs_g'), fat_g: sum('fat_g'),
+    water_ml: water.reduce((a, w) => a + w.ml, 0),
+    workout_done: workouts.some(w => w.duration_min != null),
+    weight_kg: log?.weight_kg ?? null,
+  }
 }
 
 export function parseReps(s: string) {

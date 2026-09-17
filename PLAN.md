@@ -31,7 +31,8 @@ Each one was checked against current docs or probed live before I wrote it down.
 8. **Four runtime dependencies:** react, react-dom, @supabase/supabase-js, @anthropic-ai/sdk. No router (hash tabs), no state library, no Tailwind, no component library, no markdown renderer, no zod (the SDK's `jsonSchemaOutputFormat` helper is zod-free).
 9. **Photos are resized in the browser before anything touches them.** Meal photos to 1280 px long edge; progress photos cover-cropped to a fixed 1080x1350. Both JPEG at 0.85. That bakes in EXIF orientation (Claude ignores EXIF and would see a sideways photo), converts HEIC where the browser can decode it (Safari and iOS, which is the only place HEIC shows up), lands at roughly 200 to 400 KB, costs roughly 1,300 to 2,100 visual tokens depending on aspect ratio (a 4:3 photo is about 1,600) and close to the same across model tiers, and keeps Supabase's 1 GB of storage useful for years.
 10. **Meal photos never enter the chat history.** Analysis is a single `messages.parse` call from the Today view, outside the chat loop. Chat rows store the assistant's content array verbatim, thinking blocks included, because the API needs them replayed inside a tool loop. Only image blocks are excluded, and they never enter chat in the first place.
-11. **Every dated row carries a local date the client wrote.** `meals`, `water`, `workouts` and `daily_logs` all have a `date` column holding the device's local `YYYY-MM-DD`. Totals group on that column, never on a timestamp cast to a date, which would be UTC and put dinner at 8 pm on tomorrow for anyone west of Greenwich.
+11. **Demo mode runs the whole app with no account.** A "Try the demo" button on the sign-in screen keeps every table as a JSON array in localStorage and photos in the browser's Cache API, behind the same function names the Supabase layer exports (`src/local.ts` next to `src/supabase.ts`, switched in `src/db.ts`). Anyone can use the live URL with just an API key; the Supabase setup adds Google sign-in and syncing across devices, nothing else.
+12. **Every dated row carries a local date the client wrote.** `meals`, `water`, `workouts` and `daily_logs` all have a `date` column holding the device's local `YYYY-MM-DD`. Totals group on that column, never on a timestamp cast to a date, which would be UTC and put dinner at 8 pm on tomorrow for anyone west of Greenwich.
 
 ## Architecture
 
@@ -50,7 +51,9 @@ Files:
 | `src/Chat.tsx` | Sidebar chat, streaming, tool chips |
 | `src/views/Today.tsx` `Plan.tsx` `History.tsx` `Settings.tsx` | The four tabs |
 | `src/ai.ts` | `chatTurn()`, `analyzeMeal()`, tool definitions, system prompt builder. Only file that imports the SDK |
-| `src/db.ts` | Supabase client (URL and publishable key as literals at the top; both are public by design) and typed queries |
+| `src/db.ts` | Picks `src/supabase.ts` or `src/local.ts` (demo mode) and re-exports the same query functions |
+| `src/supabase.ts` | Supabase client (URL and publishable key as literals at the top; both are public by design) and typed queries |
+| `src/local.ts` | The same functions over localStorage and the Cache API, for demo mode |
 | `src/image.ts` | Resize, cover-crop, base64 |
 | `src/video.ts` | Stitch photos into a video |
 | `src/app.css` | Tokens and components |

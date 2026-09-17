@@ -6,7 +6,7 @@
 
 Paste in an Anthropic key and you get a trainer that builds your plan from a real conversation, reads your meals off a photo, and turns your daily progress pics into a transformation video.
 
-[Live app (not much there yet)](https://duckyquang.github.io/APT) · [How it works](#how-it-works) · [Bring your own key](#bring-your-own-key) · [Roadmap](#roadmap)
+[Live app](https://duckyquang.github.io/APT) · [How it works](#how-it-works) · [Bring your own key](#bring-your-own-key) · [Roadmap](#roadmap)
 
 ![status](https://img.shields.io/badge/status-early%20build-white?style=flat&labelColor=000)
 ![hosting](https://img.shields.io/badge/hosted%20on-GitHub%20Pages-white?style=flat&labelColor=000)
@@ -37,7 +37,7 @@ I'm building this for me first. If it's useful to you too, great.
 
 ## How it works
 
-1. Open the app and sign in with Google. No password to remember.
+1. Open the app and sign in with Google, or tap Try the demo to keep everything in your browser. No password to remember either way.
 2. Paste your API key. It stays in your browser and is never uploaded anywhere. New device, paste it again. That's the whole security model, and it's on purpose.
 3. Talk to APT. It asks what it needs, then writes your first week.
 4. Live your day. Log meals by photo, tap for water, check off sets. Snap a progress pic.
@@ -57,6 +57,7 @@ Want a different provider? Open an issue. Gemini is next in line, it's about 40 
 - Progress photos go to your private Supabase storage and nowhere else. The transformation video is rendered on your device and never uploaded.
 - Chat history is stored so it's the same on every device. Images are never in it.
 - Your API key is never stored anywhere but your own browser.
+- In the demo, nothing is uploaded at all. Logs and photos live in that browser until you erase them.
 
 Cost: whatever Anthropic bills you. I haven't measured a typical day yet. When I have real numbers they'll go here.
 
@@ -77,7 +78,7 @@ You need your own Supabase project: run `supabase/schema.sql`, turn on Google si
 
 ## Roadmap
 
-Nothing below is live yet. I'm building in this order and I'll tick boxes as they land on the Pages URL.
+Everything below is built and runs in the live demo. Google sign-in and syncing across devices still need the one-time Supabase setup in PLAN.md, so the boxes stay unticked until that's verified.
 
 - [ ] Sign in, same data on every device
 - [ ] Onboarding conversation and profile

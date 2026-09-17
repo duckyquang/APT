@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type Anthropic from '@anthropic-ai/sdk'
-import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan, when, toKg, fromKg } from './logic.ts'
+import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan, when, toKg, fromKg, computeTotals } from './logic.ts'
 import type { Exercise, Profile, MealEstimate, WorkoutRow } from './types.ts'
 
 const user = (text: string): Anthropic.MessageParam => ({ role: 'user', content: [{ type: 'text', text }] })
@@ -35,6 +35,13 @@ test('when parses date and time and ignores junk', () => {
   assert.equal(d.getFullYear(), 2026); assert.equal(d.getMonth(), 8); assert.equal(d.getDate(), 16)
   assert.equal(d.getHours(), 21); assert.equal(d.getMinutes(), 5)
   assert.equal(when('nope', '25:99').getDate(), new Date().getDate())
+})
+
+test('computeTotals rolls a day up like the daily_totals view', () => {
+  const meal = (kcal: number, protein_g: number) => ({ id: 'm', date: '2026-09-17', eaten_at: '', photo_path: null, name: 'x', items: [], kcal, protein_g, carbs_g: 10, fat_g: 5, fiber_g: 0, confidence: null, assumptions: null, source: 'manual' as const })
+  const t = computeTotals('2026-09-17', [meal(400, 30), meal(250.4, 12)], [{ ml: 500 }, { ml: 250 }], [w('2026-09-17', 'Barbell_Squat', [100])], { weight_kg: 80.5 })
+  assert.deepEqual(t, { date: '2026-09-17', kcal: 650, protein_g: 42, carbs_g: 20, fat_g: 10, water_ml: 750, workout_done: true, weight_kg: 80.5 })
+  assert.equal(computeTotals('2026-09-18', [], [], [{ ...w('2026-09-18', 'Pushups', [0]), duration_min: null }]).workout_done, false)
 })
 
 test('unit conversion round-trips to a tenth', () => {
