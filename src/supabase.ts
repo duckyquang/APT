@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
-import type Anthropic from '@anthropic-ai/sdk'
 import { dayKey } from './dates.ts'
 import { zeroTotals } from './logic.ts'
-import type { Profile, PlanRow, DailyTotals, MealRow, WorkoutPlan, MealPlan, WorkoutRow } from './types.ts'
+import type { Profile, PlanRow, DailyTotals, MealRow, WorkoutPlan, MealPlan, WorkoutRow, Msg, MessageRow } from './types.ts'
+
+export type { MessageRow } from './types.ts'
 
 // both public by design; RLS is the wall
 export const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co'
@@ -83,8 +84,6 @@ export async function dayMeals(date: string) {
   return unwrap(await sb.from('meals').select('*').eq('date', date).order('eaten_at')) as MealRow[]
 }
 
-export type MessageRow = { id: number; role: 'user' | 'assistant'; content: Anthropic.MessageParam['content'] }
-
 export async function loadMessages(limit = 40) {
   const rows = unwrap(
     await sb.from('messages').select('id, role, content').order('id', { ascending: false }).limit(limit),
@@ -92,7 +91,7 @@ export async function loadMessages(limit = 40) {
   return rows.reverse()
 }
 
-export async function insertMessages(rows: Anthropic.MessageParam[]) {
+export async function insertMessages(rows: Msg[]) {
   return unwrap(
     await sb.from('messages').insert(rows.map(r => ({ role: r.role, content: r.content }))).select('id, role, content'),
   ) as MessageRow[]

@@ -1,14 +1,13 @@
-import type Anthropic from '@anthropic-ai/sdk'
 import { WEEKDAYS, type Weekday } from './dates.ts'
 import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate, WorkoutRow, WorkoutExercise, MealRow, DailyTotals } from './types.ts'
 
-const hasBlock = (m: Anthropic.MessageParam, type: string) =>
-  Array.isArray(m.content) && m.content.some(b => b.type === type)
+const hasBlock = (m: { content: unknown }, type: string) =>
+  Array.isArray(m.content) && m.content.some(b => b?.type === type)
 
 // the API rejects a tool_use without its tool_result and a tool_result without its tool_use;
 // a turn cut off by max_tokens or a closed tab can leave either behind, so drop orphans anywhere
-export function trimWindow(msgs: Anthropic.MessageParam[]) {
-  const out: Anthropic.MessageParam[] = []
+export function trimWindow<T extends { role: string; content: unknown }>(msgs: T[]): T[] {
+  const out: T[] = []
   for (let i = 0; i < msgs.length; i++) {
     const m = msgs[i]
     const next = msgs[i + 1]

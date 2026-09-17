@@ -1,14 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { MODELS, validateKey, setKey, errorMessage } from '../ai.ts'
+import { PROVIDERS, validateKey, getKey, setKey, errorMessage } from '../ai.ts'
 import { updateProfile, signOut, resetDemo, DEMO } from '../db.ts'
 import { applyProfile } from '../tools.ts'
 import { WEEKDAYS, type Weekday } from '../dates.ts'
 import { LEVELS, IN, toKg } from '../logic.ts'
-import type { Profile } from '../types.ts'
+import type { Profile, ProviderId } from '../types.ts'
 
-export function Settings(p: { userId: string; profile: Profile; apiKey: string; onKey: (k: string) => void; onChange: () => void }) {
-  const [key, setK] = useState(p.apiKey)
+const IDS = Object.keys(PROVIDERS) as ProviderId[]
+
+export function Settings(p: { userId: string; profile: Profile; onChange: () => void }) {
+  const [key, setK] = useState(getKey(p.profile.provider))
   const [keyStatus, setKeyStatus] = useState('')
+  const [modelIn, setModelIn] = useState(p.profile.model)
   const [f, setF] = useState<Profile>(p.profile)
   const [dirty, setDirty] = useState<Set<keyof Profile>>(new Set())
   const [weight, setWeight] = useState('')
@@ -30,16 +33,32 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
     setKeyStatus('Checking…')
     const k = key.trim()
     try {
-      await validateKey(k)
-      setKey(k)
-      p.onKey(k)
+      await validateKey(f.provider, k, f.model)
+      setKey(f.provider, k)
       setKeyStatus('Key works.')
+      p.onChange()
     } catch (e) {
       setKeyStatus(errorMessage(e))
     }
   }
 
-  async function changeModel(model: string) {
+  async function changeProvider(provider: ProviderId) {
+    const model = PROVIDERS[provider].models[0]
+    try {
+      await updateProfile(p.userId, { provider, model })
+      setF(cur => ({ ...cur, provider, model }))
+      setModelIn(model)
+      setK(getKey(provider))
+      setKeyStatus('')
+      p.onChange()
+    } catch (e) {
+      setStatus(errorMessage(e))
+    }
+  }
+
+  async function changeModel() {
+    const model = modelIn.trim()
+    if (!model || model === f.model) return
     try {
       await updateProfile(p.userId, { model })
       setF(cur => ({ ...cur, model }))
@@ -52,7 +71,7 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
   async function save(e: FormEvent) {
     e.preventDefault()
     setStatus('')
-    const patch = Object.fromEntries([...dirty].filter(k => k !== 'model').map(k => [k, f[k]])) as Partial<Profile>
+    const patch = Object.fromEntries([...dirty].filter(k => k !== 'model' && k !== 'provider').map(k => [k, f[k]])) as Partial<Profile>
     const w = weight ? toKg(+weight, imperial) : undefined
     try {
       await applyProfile(p.userId, patch, w)
@@ -71,25 +90,29 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
   return (
     <div className="stack">
       <section className="tile">
-        <h2>Anthropic API key</h2>
+        <div className="tile-head"><span className="label">AI provider</span></div>
+        <div className="seg">
+          {IDS.map(id => (
+            <button key={id} type="button" aria-pressed={f.provider === id} onClick={() => changeProvider(id)}>{PROVIDERS[id].label}</button>
+          ))}
+        </div>
+        <label>Model
+          <input list="apt-models" value={modelIn} onChange={e => setModelIn(e.target.value)} onBlur={changeModel} autoComplete="off" spellCheck={false} />
+          <datalist id="apt-models">{PROVIDERS[f.provider].models.map(m => <option key={m} value={m} />)}</datalist>
+        </label>
+        <small>Type any model id your provider offers. The suggestions are the ones I know about; check your provider's model list if one is rejected.</small>
+        <label>{PROVIDERS[f.provider].label} API key
+          <input type="password" value={key} onChange={e => setK(e.target.value)} placeholder="paste your key" autoComplete="off" />
+        </label>
         <p className="muted">Stays in this browser only. Use a dedicated key with a spend limit. On a new device, paste it again.</p>
-        <input type="password" value={key} onChange={e => setK(e.target.value)} placeholder="sk-ant-…" autoComplete="off" />
         <div className="row">
           <button className="primary" type="button" onClick={saveKey} disabled={!key.trim()}>Save key</button>
           <small>{keyStatus}</small>
         </div>
       </section>
 
-      <section className="tile">
-        <h2>Model</h2>
-        <select value={f.model} onChange={e => changeModel(e.target.value)}>
-          {MODELS.map(m => <option key={m}>{m}</option>)}
-        </select>
-        <small>Opus is the default. Sonnet is cheaper and dodges the rate limits new keys hit.</small>
-      </section>
-
       <form className="tile stack" onSubmit={save}>
-        <h2>Profile</h2>
+        <div className="tile-head"><span className="label">Profile</span></div>
         <label>Name<input value={f.name ?? ''} onChange={text('name')} /></label>
         <label>Sex
           <select value={f.sex ?? ''} onChange={text('sex')}>

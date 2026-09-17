@@ -15,6 +15,7 @@ create table public.profiles (
   targets jsonb not null default '{"water_ml": 2500}',
   units text not null default 'metric',
   model text not null default 'claude-opus-5',
+  provider text not null default 'anthropic',
   onboarded_at timestamptz,
   updated_at timestamptz not null default now()
 );

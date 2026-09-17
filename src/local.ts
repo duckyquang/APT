@@ -1,8 +1,7 @@
-import type Anthropic from '@anthropic-ai/sdk'
 import { dayKey } from './dates.ts'
 import { computeTotals, zeroTotals } from './logic.ts'
-import type { Profile, PlanRow, MealRow, WorkoutPlan, MealPlan, WorkoutRow } from './types.ts'
-import type { MessageRow, NewMeal } from './supabase.ts'
+import type { Profile, PlanRow, MealRow, WorkoutPlan, MealPlan, WorkoutRow, Msg, MessageRow } from './types.ts'
+import type { NewMeal } from './supabase.ts'
 
 // ponytail: demo mode keeps each table as one JSON array in localStorage and photos in the Cache API.
 // Plenty for one person's data; move to IndexedDB if it ever gets slow.
@@ -40,7 +39,7 @@ export async function ensureProfile(userId: string) {
   const p: Profile = {
     user_id: userId, name: null, sex: null, birth_date: null, height_cm: null, goal: null, activity_level: null,
     training_days: [], equipment: null, injuries: null, dietary_prefs: null, targets: { water_ml: 2500 },
-    units: 'metric', model: 'claude-opus-5', onboarded_at: null, updated_at: now(),
+    units: 'metric', model: 'claude-opus-5', provider: 'anthropic', onboarded_at: null, updated_at: now(),
   }
   localStorage.setItem(key('profile'), JSON.stringify(p))
 }
@@ -103,10 +102,10 @@ export async function insertWater(ml: number, at = new Date()) {
 }
 
 export async function loadMessages(limit = 40) { return load<MessageRow>('messages').slice(-limit) }
-export async function insertMessages(rows: Anthropic.MessageParam[]) {
+export async function insertMessages(rows: Msg[]) {
   const all = load<MessageRow>('messages')
   let id = all.length ? all[all.length - 1].id : 0
-  const added: MessageRow[] = rows.map(r => ({ id: ++id, role: r.role as MessageRow['role'], content: r.content }))
+  const added: MessageRow[] = rows.map(r => ({ id: ++id, role: r.role, content: r.content }))
   save('messages', [...all, ...added])
   return added
 }

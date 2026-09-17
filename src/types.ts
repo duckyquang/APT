@@ -13,6 +13,15 @@ export type Exercise = {
 
 export type Videos = Record<string, string>
 
+export type ProviderId = 'anthropic' | 'openai' | 'gemini'
+
+export type Block =
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean }
+export type Msg = { role: 'user' | 'assistant'; content: Block[] }
+export type MessageRow = { id: number; role: 'user' | 'assistant'; content: Block[] | string }
+
 export type Targets = { kcal?: number; protein_g?: number; carbs_g?: number; fat_g?: number; water_ml?: number }
 
 export type Profile = {
@@ -30,6 +39,7 @@ export type Profile = {
   targets: Targets
   units: 'metric' | 'imperial'
   model: string
+  provider: ProviderId
   onboarded_at: string | null
   updated_at: string
 }

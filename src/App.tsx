@@ -24,7 +24,6 @@ export function App() {
   const [ready, setReady] = useState(false)
   const [profile, setProfile] = useState<Profile>()
   const [data, setData] = useState<{ catalog: Exercise[]; videos: Videos }>()
-  const [apiKey, setApiKey] = useState(getKey)
   const [version, setVersion] = useState(0)
   const [error, setError] = useState('')
   const bump = () => setVersion(v => v + 1)
@@ -61,13 +60,14 @@ export function App() {
 
   // first run: no key means Settings; key but not onboarded means Settings with the chat open
   const onboarded = !!profile?.onboarded_at
+  const keyOk = !!profile && !!getKey(profile.provider)
   useEffect(() => {
     if (!profile) return
-    if (!apiKey || !onboarded) {
+    if (!keyOk || !onboarded) {
       location.hash = '#settings'
-      setChatOpen(!!apiKey && !onboarded)
+      setChatOpen(keyOk && !onboarded)
     }
-  }, [profile?.user_id, apiKey])
+  }, [profile?.user_id, keyOk])
 
   if (session === undefined) return null
   if (!session) {
@@ -97,7 +97,7 @@ export function App() {
     tab === 'today' ? <Today userId={session.user.id} profile={profile} version={version} onChange={bump} /> :
     tab === 'plan' ? (data ? <Plan catalog={data.catalog} videos={data.videos} version={version} /> : <p className="muted">Loading exercises…</p>) :
     tab === 'settings' ? (
-      <Settings userId={session.user.id} profile={profile} apiKey={apiKey} onKey={k => { setApiKey(k); bump() }} onChange={bump} />
+      <Settings userId={session.user.id} profile={profile} onChange={bump} />
     ) :
     <History imperial={profile.units === 'imperial'} version={version} />
 
@@ -113,11 +113,11 @@ export function App() {
       </header>
       <main>
         {error && <p className="notice error" onClick={() => setError('')}>{error}</p>}
-        {!apiKey && tab !== 'settings' && <p className="notice">Add your Anthropic key in Settings to start.</p>}
+        {!keyOk && tab !== 'settings' && <p className="notice">Add your API key in Settings to start.</p>}
         {view}
       </main>
       <aside className={chatOpen ? 'open' : ''}>
-        {data ? <Chat userId={session.user.id} catalog={data.catalog} videos={data.videos} onChange={bump} /> : <p className="muted">Loading exercises…</p>}
+        {data ? <Chat userId={session.user.id} provider={profile.provider} catalog={data.catalog} videos={data.videos} onChange={bump} /> : <p className="muted">Loading exercises…</p>}
       </aside>
       <button className="fab" onClick={() => setChatOpen(o => !o)} aria-label="Toggle chat">💬</button>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { dayTotals, dayMeals, progressPhotoPath, latestWeight, latestPlan, insertMeal, deleteMeal, insertWater, upsertDailyLog, uploadPhoto, signedUrls, zeroTotals } from '../db.ts'
-import { analyzeMeal, errorMessage } from '../ai.ts'
+import { analyzeMeal, errorMessage, getKey } from '../ai.ts'
 import { sanitizeMeal, toKg, fromKg } from '../logic.ts'
 import { resizeToJpeg, coverCrop } from '../image.ts'
 import { dayKey, weekdayOf } from '../dates.ts'
@@ -69,7 +69,7 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
     try {
       const jpeg = await resizeToJpeg(file)
       setDialog({ photo: jpeg, estimate: null, analyzing: true, error: '' })
-      const est = sanitizeMeal(await analyzeMeal(jpeg, '', p.profile.model))
+      const est = sanitizeMeal(await analyzeMeal(p.profile.provider, getKey(p.profile.provider), p.profile.model, jpeg, ''))
       setDialog({ photo: jpeg, estimate: est, analyzing: false, error: '' })
     } catch (err) {
       setDialog(d => ({ photo: d?.photo ?? null, estimate: null, analyzing: false, error: errorMessage(err) }))
