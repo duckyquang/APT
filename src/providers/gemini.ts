@@ -45,11 +45,14 @@ export const gemini: Provider = {
       const stream = await ai.models.generateContentStream({ model: o.model, contents, config })
       let text = ''
       const calls: FunctionCall[] = []
+      const parts: Part[] = []
       let finish: string | undefined
       for await (const chunk of stream) {
         const t = chunk.text
         if (t) { text += t; o.onText(text) }
         for (const fc of chunk.functionCalls ?? []) calls.push(fc)
+        // keep the candidate's parts verbatim: thinking models sign function-call parts and want them echoed back
+        parts.push(...(chunk.candidates?.[0]?.content?.parts ?? []))
         finish = chunk.candidates?.[0]?.finishReason ?? finish
       }
       const ids = calls.map(fc => fc.id ?? crypto.randomUUID())
@@ -61,15 +64,14 @@ export const gemini: Provider = {
         if (blocks.length) await o.onRound(assistant)
         return finish === 'MAX_TOKENS' ? 'max_tokens' : finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT' ? 'refusal' : 'end_turn'
       }
-      const modelParts: Part[] = text ? [{ text }] : []
-      calls.forEach((fc, i) => modelParts.push({ functionCall: { id: ids[i], name: fc.name, args: fc.args } }))
-      contents.push({ role: 'model', parts: modelParts })
+      contents.push({ role: 'model', parts })
       const results: Block[] = []
       const resParts: Part[] = []
       for (let i = 0; i < calls.length; i++) {
         const r = await o.runTool(calls[i].name ?? '', calls[i].args ?? {})
         results.push({ type: 'tool_result', tool_use_id: ids[i], content: r.result, is_error: r.error })
-        resParts.push({ functionResponse: { id: ids[i], name: calls[i].name, response: { result: r.result } } })
+        // only echo an id the model actually sent; a made-up one would not match anything on its side
+        resParts.push({ functionResponse: { ...(calls[i].id ? { id: calls[i].id } : {}), name: calls[i].name, response: { result: r.result } } })
       }
       contents.push({ role: 'user', parts: resParts })
       await o.onRound(assistant, { role: 'user', content: results })

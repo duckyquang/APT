@@ -67,7 +67,7 @@ export function Plan(p: { catalog: Exercise[]; videos: Videos; version: number }
         <div className="cards">
           {[...(row.content as WorkoutPlan).days].sort((a, b) => ORDER.indexOf(a.weekday) - ORDER.indexOf(b.weekday)).map(d => {
             const idx = ORDER.indexOf(d.weekday)
-            const session = week.find(w => w.day_name === d.name)
+            const session = week.find(w => weekdayOf(new Date(w.date + 'T12:00:00')) === d.weekday)
             const sets = session?.exercises.flatMap(x => x.sets) ?? []
             const planned = d.exercises.reduce((a, x) => a + x.sets, 0)
             const pct = session?.duration_min != null ? 100 : sets.length ? Math.round((sets.filter(s => s.done).length / sets.length) * 100) : 0

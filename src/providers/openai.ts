@@ -32,7 +32,8 @@ export const openai: Provider = {
       let final: OpenAI.Responses.Response | undefined
       for await (const ev of stream) {
         if (ev.type === 'response.output_text.delta') { text += ev.delta; o.onText(text) }
-        if (ev.type === 'response.completed') final = ev.response
+        if (ev.type === 'response.completed' || ev.type === 'response.incomplete') final = ev.response
+        if (ev.type === 'response.failed') throw new Error(ev.response.error?.message ?? 'The provider failed to respond.')
       }
       if (!final) throw new Error('The provider closed the stream without a response.')
       const calls = final.output.filter((i): i is OpenAI.Responses.ResponseFunctionToolCall => i.type === 'function_call')

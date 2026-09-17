@@ -44,7 +44,8 @@ export async function ensureProfile(userId: string) {
   localStorage.setItem(key('profile'), JSON.stringify(p))
 }
 export async function loadProfile() {
-  return JSON.parse(localStorage.getItem(key('profile')) ?? 'null') as Profile
+  // profiles saved before providers existed have no provider field
+  return { provider: 'anthropic', ...JSON.parse(localStorage.getItem(key('profile')) ?? 'null') } as Profile
 }
 export async function updateProfile(_userId: string, patch: Partial<Profile>) {
   const { user_id, ...rest } = patch

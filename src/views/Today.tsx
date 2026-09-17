@@ -154,7 +154,7 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
         {weight && prev && prev.date !== weight.date
           ? <Delta value={Math.round((fromKg(weight.weight_kg, imperial) - fromKg(prev.weight_kg!, imperial)) * 10) / 10} unit={unit} label="vs a week ago" />
           : <div className="delta">{weight ? `last weigh-in ${weight.date}` : 'no weigh-in yet'}</div>}
-        <Spark points={weighIns.slice(-30).map(t => ({ label: t.date, value: fromKg(t.weight_kg!, imperial) }))} unit={unit} />
+        <Spark points={weighIns.filter(t => t.date >= lastNDays(30)[0]).map(t => ({ label: t.date, value: fromKg(t.weight_kg!, imperial) }))} unit={unit} />
         <div className="row" style={{ marginTop: 12 }}>
           <input type="number" step="any" value={weightIn} onChange={e => setWeightIn(e.target.value)} placeholder={unit} className="short" />
           <button type="button" onClick={saveWeight}>Weigh in</button>

@@ -26,7 +26,10 @@ export function getKey(p: ProviderId) {
   }
 }
 export function setKey(p: ProviderId, k: string) {
-  try { k ? localStorage.setItem(`apt.key.${p}`, k) : localStorage.removeItem(`apt.key.${p}`) } catch {}
+  try {
+    k ? localStorage.setItem(`apt.key.${p}`, k) : localStorage.removeItem(`apt.key.${p}`)
+    if (p === 'anthropic') localStorage.removeItem('apt.key')
+  } catch {}
 }
 
 export const validateKey = (p: ProviderId, key: string, model: string) => impl[p].validateKey(key, model)
@@ -34,7 +37,7 @@ export const validateKey = (p: ProviderId, key: string, model: string) => impl[p
 export function errorMessage(e: unknown) {
   const status = (e as { status?: number } | null)?.status
   const msg = e instanceof Error ? e.message : String(e)
-  if (status === 401 || status === 403) return 'That API key was rejected. Check it in Settings.'
+  if (status === 401 || status === 403 || (status === 400 && /api key/i.test(msg))) return 'That API key was rejected. Check it in Settings.'
   if (status === 429) return 'Rate limited by the provider. Wait a minute or switch to a cheaper model in Settings.'
   if (status === 529 || (status && status >= 500)) return 'The provider is overloaded right now. Try again in a moment.'
   if (/connection|failed to fetch|network/i.test(msg)) return 'Could not reach the provider. Check your connection; some organisations block browser calls.'

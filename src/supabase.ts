@@ -45,7 +45,7 @@ function unwrap<T>({ data, error }: { data: T; error: { message: string } | null
 }
 
 export async function loadProfile() {
-  return unwrap(await sb.from('profiles').select('*').single()) as Profile
+  return { provider: 'anthropic', ...unwrap(await sb.from('profiles').select('*').single()) } as Profile
 }
 
 export async function updateProfile(userId: string, patch: Partial<Profile>) {
