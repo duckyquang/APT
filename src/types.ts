@@ -14,6 +14,7 @@ export type Exercise = {
 export type Videos = Record<string, string>
 
 export type ProviderId = 'anthropic' | 'openai' | 'gemini'
+export type ModelOption = { id: string; name: string; blurb: string; tier: 'best' | 'balanced' | 'fast' }
 
 export type Block =
   | { type: 'text'; text: string }

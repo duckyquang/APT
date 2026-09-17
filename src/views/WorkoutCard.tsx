@@ -50,7 +50,7 @@ export function WorkoutCard(p: { imperial: boolean; version: number; onChange: (
   }, [rest])
 
   if (!s) return null
-  if ('note' in s) return <section className="tile span"><Label>Workout</Label><p className="muted">{s.note}</p></section>
+  if ('note' in s) return <section className="tile work"><Label>Workout</Label><p className="muted">{s.note}</p></section>
   const { row, rests } = s
   const done = row.duration_min != null
   const unit = p.imperial ? 'lb' : 'kg'
@@ -81,7 +81,7 @@ export function WorkoutCard(p: { imperial: boolean; version: number; onChange: (
   const pct = total ? Math.round((doneSets.length / total) * 100) : 0
 
   return (
-    <section className="tile span">
+    <section className="tile work">
       <Label meta={done ? 'done' : rest > 0 ? <span className="rest">rest {rest}s</span> : `${doneSets.length}/${total} sets`}>Workout · {row.day_name}</Label>
       <div className="bar"><i style={{ width: `${pct}%` }} /></div>
       {error && <p className="error">{error}</p>}

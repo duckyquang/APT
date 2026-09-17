@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { chatTurn, buildSystem, errorMessage, getKey } from './ai.ts'
 import { trimWindow, missingFields } from './logic.ts'
 import { loadMessages, insertMessages, clearChat, loadProfile, latestWeight, dayTotals, dayMeals, latestPlan, type MessageRow } from './db.ts'
@@ -21,13 +21,16 @@ function chip(b: Extract<Block, { type: 'tool_use' }>) {
   }
 }
 
+const chipColor = (name: string) =>
+  name === 'update_profile' ? 'var(--purple)' : name === 'search_exercises' ? 'var(--blue)' : name.startsWith('save_') ? 'var(--orange)' : name.startsWith('log_') ? 'var(--green)' : 'var(--yellow)'
+
 function Bubble({ m }: { m: MessageRow }) {
   const blocks: Block[] = typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content
   return (
     <>
       {blocks.map((b, i) => {
         if (b.type === 'text' && b.text.trim()) return <div key={i} className={'bubble ' + m.role}>{b.text}</div>
-        if (b.type === 'tool_use') return <div key={i} className="chip">{chip(b)}</div>
+        if (b.type === 'tool_use') return <div key={i} className="chip" style={{ '--c': chipColor(b.name) } as CSSProperties}>{chip(b)}</div>
         return null
       })}
     </>
@@ -104,7 +107,7 @@ export function Chat(p: { userId: string; provider: ProviderId; catalog: Exercis
   return (
     <div className="chat">
       <div className="chat-head">
-        <span className="label">Trainer</span>
+        <span className={'label' + (hasKey ? '' : ' off')}>Trainer</span>
         <button type="button" className="ghost" onClick={clear} disabled={busy || !rows.length}>Clear chat</button>
       </div>
       <div className="chat-log">

@@ -5,15 +5,43 @@ import { anthropic } from './providers/anthropic.ts'
 import { openai } from './providers/openai.ts'
 import { gemini } from './providers/gemini.ts'
 import type { Provider, ChatOpts } from './providers/types.ts'
-import type { Profile, PlanRow, DailyTotals, MealRow, MealEstimate, ProviderId } from './types.ts'
+import type { Profile, PlanRow, DailyTotals, MealRow, MealEstimate, ProviderId, ModelOption } from './types.ts'
 
 export type { ToolRunner } from './providers/types.ts'
 
-// model ids are suggestions; the field in Settings is free text because names move
-export const PROVIDERS: Record<ProviderId, { label: string; models: string[] }> = {
-  anthropic: { label: 'Anthropic', models: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'] },
-  openai: { label: 'OpenAI', models: ['gpt-6-astra'] },
-  gemini: { label: 'Google Gemini', models: ['gemini-3.8-flash'] },
+// model lists as of 2026-09-17 from each provider's docs; Settings also takes any id typed by hand
+export const PROVIDERS: Record<ProviderId, { label: string; def: string; models: ModelOption[] }> = {
+  anthropic: {
+    label: 'Anthropic', def: 'claude-opus-5',
+    models: [
+      { id: 'claude-opus-5', name: 'Claude Opus 5', blurb: 'The default. Best plans, most careful onboarding.', tier: 'best' },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', blurb: 'Nearly as good, cheaper, higher rate limits on a new key.', tier: 'balanced' },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', blurb: 'Fast and cheap. Meal photo estimates get rougher.', tier: 'fast' },
+      { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', blurb: 'The most capable Anthropic model. Pricey, and your org needs standard retention.', tier: 'best' },
+      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', blurb: 'Previous Opus generation.', tier: 'balanced' },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', blurb: 'Previous Sonnet generation.', tier: 'fast' },
+    ],
+  },
+  openai: {
+    label: 'OpenAI', def: 'gpt-5.6-terra',
+    models: [
+      { id: 'gpt-6-astra', name: 'GPT-6 Astra', blurb: 'The most capable OpenAI model, for the hardest work.', tier: 'best' },
+      { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', blurb: 'Flagship for complex professional work.', tier: 'best' },
+      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', blurb: 'The default here. Balances intelligence and cost.', tier: 'balanced' },
+      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', blurb: 'Built for cost-sensitive, high-volume use.', tier: 'fast' },
+    ],
+  },
+  gemini: {
+    label: 'Google Gemini', def: 'gemini-3.8-flash',
+    models: [
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', blurb: 'Deepest reasoning in the Gemini line. Preview.', tier: 'best' },
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', blurb: 'The default here. Strong at tool use, fast.', tier: 'balanced' },
+      { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', blurb: 'Everyday speed and multimodal balance.', tier: 'balanced' },
+      { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', blurb: 'Fastest and cheapest.', tier: 'fast' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', blurb: 'Previous generation Pro.', tier: 'balanced' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', blurb: 'Previous generation Flash.', tier: 'fast' },
+    ],
+  },
 }
 
 const impl: Record<ProviderId, Provider> = { anthropic, openai, gemini }

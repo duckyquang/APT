@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { signIn, ensureProfile, loadProfile, getSession, onAuthChange, startDemo, DEMO, SUPABASE_URL } from './db.ts'
 import { getKey } from './ai.ts'
 import { loadCatalog } from './catalog.ts'
@@ -17,16 +17,20 @@ export function tabFromHash(hash = location.hash): Tab {
   return TABS.includes(h) ? h : 'today'
 }
 
+const CHAT = 'apt.chat'
+const desktop = () => matchMedia('(min-width: 901px)').matches
+
 export function App() {
   const [session, setSession] = useState<{ user: { id: string } } | null>()
   const [tab, setTab] = useState<Tab>(tabFromHash)
-  const [chatOpen, setChatOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(() => { try { return desktop() && localStorage.getItem(CHAT) !== '0' } catch { return false } })
   const [ready, setReady] = useState(false)
   const [profile, setProfile] = useState<Profile>()
   const [data, setData] = useState<{ catalog: Exercise[]; videos: Videos }>()
   const [version, setVersion] = useState(0)
   const [error, setError] = useState('')
   const bump = () => setVersion(v => v + 1)
+  const toggleChat = () => setChatOpen(o => { try { localStorage.setItem(CHAT, o ? '0' : '1') } catch {} return !o })
 
   useEffect(() => {
     getSession().then(setSession)
@@ -71,14 +75,20 @@ export function App() {
 
   if (session === undefined) return null
   if (!session) {
+    const configured = !SUPABASE_URL.includes('YOUR-PROJECT')
     return (
       <main className="gate">
-        <h1>APT</h1>
+        <h1 className="wordmark">APT</h1>
         <p className="muted">A personal trainer that runs on your own API key.</p>
-        {!SUPABASE_URL.includes('YOUR-PROJECT') && (
-          <button className="primary" onClick={() => signIn().then(({ error }) => error && setError(error))}>Sign in with Google</button>
-        )}
-        <button type="button" onClick={startDemo}>Try the demo</button>
+        <div className="features">
+          <div className="tile" style={{ '--accent': 'var(--orange)' } as CSSProperties}><b>PLANS</b>written from a real conversation</div>
+          <div className="tile" style={{ '--accent': 'var(--teal)' } as CSSProperties}><b>MEALS</b>calories and macros from a photo</div>
+          <div className="tile" style={{ '--accent': 'var(--purple)' } as CSSProperties}><b>PROGRESS</b>a daily photo, then a video</div>
+        </div>
+        <div className="cta">
+          {configured && <button className="primary" onClick={() => signIn().then(({ error }) => error && setError(error))}>Sign in with Google</button>}
+          <button className={configured ? '' : 'primary'} type="button" onClick={startDemo}>Try the demo</button>
+        </div>
         <p className="muted">The demo keeps everything in this browser. You still bring your own API key.</p>
         {error && <p className="error">{error}</p>}
       </main>
@@ -96,31 +106,33 @@ export function App() {
   const view =
     tab === 'today' ? <Today userId={session.user.id} profile={profile} version={version} onChange={bump} /> :
     tab === 'plan' ? (data ? <Plan catalog={data.catalog} videos={data.videos} version={version} /> : <p className="muted">Loading exercises…</p>) :
-    tab === 'settings' ? (
-      <Settings userId={session.user.id} profile={profile} onChange={bump} />
-    ) :
+    tab === 'settings' ? <Settings userId={session.user.id} profile={profile} onChange={bump} /> :
     <History imperial={profile.units === 'imperial'} version={version} />
 
   return (
-    <div className="shell">
+    <div className={'shell ' + (chatOpen ? 'chat-open' : 'chat-closed')}>
       <header>
         <nav>
           <a className="wordmark" href="#today">APT</a>
           {TABS.map(t => (
             <a key={t} href={'#' + t} aria-current={t === tab ? 'page' : undefined}>{t}</a>
           ))}
-          {DEMO && <span className="pill">demo</span>}
+          <span className="end">
+            {DEMO && <span className="pill">demo</span>}
+            <button type="button" className="chat-toggle" aria-pressed={chatOpen} onClick={toggleChat}>Chat</button>
+          </span>
         </nav>
       </header>
-      <main>
+      <main className={tab}>
         {error && <p className="notice error" onClick={() => setError('')}>{error}</p>}
         {!keyOk && tab !== 'settings' && <p className="notice">Add your API key in Settings to start.</p>}
         {view}
       </main>
-      <aside className={chatOpen ? 'open' : ''}>
-        {data ? <Chat userId={session.user.id} provider={profile.provider} catalog={data.catalog} videos={data.videos} onChange={bump} /> : <p className="muted">Loading exercises…</p>}
+      <aside>
+        <div className="aside-in">
+          {data ? <Chat userId={session.user.id} provider={profile.provider} catalog={data.catalog} videos={data.videos} onChange={bump} /> : <p className="muted" style={{ padding: 16 }}>Loading exercises…</p>}
+        </div>
       </aside>
-      <button className="fab" onClick={() => setChatOpen(o => !o)} aria-label="Toggle chat">💬</button>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { HeatCell } from '../logic.ts'
 
+// every tile sets --accent; labels, bars and chips pick it up from CSS
 export const Label = ({ children, meta }: { children: ReactNode; meta?: ReactNode }) => (
   <div className="tile-head">
     <span className="label">{children}</span>
@@ -32,7 +33,7 @@ export function Bars({ points, unit }: { points: Point[]; unit: string }) {
 }
 
 export function Spark({ points, unit }: { points: Point[]; unit: string }) {
-  if (!points.length) return null
+  if (!points.length) return <div className="spark empty" />
   const vals = points.map(p => p.value)
   const lo = Math.min(...vals)
   const hi = Math.max(...vals)
