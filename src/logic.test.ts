@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type Anthropic from '@anthropic-ai/sdk'
-import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan, when, toKg, fromKg, computeTotals } from './logic.ts'
+import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan, when, toKg, fromKg, computeTotals, lastNDays, weekStart, heatmap } from './logic.ts'
 import type { Exercise, Profile, MealEstimate, WorkoutRow } from './types.ts'
 
 const user = (text: string): Anthropic.MessageParam => ({ role: 'user', content: [{ type: 'text', text }] })
@@ -42,6 +42,26 @@ test('computeTotals rolls a day up like the daily_totals view', () => {
   const t = computeTotals('2026-09-17', [meal(400, 30), meal(250.4, 12)], [{ ml: 500 }, { ml: 250 }], [w('2026-09-17', 'Barbell_Squat', [100])], { weight_kg: 80.5 })
   assert.deepEqual(t, { date: '2026-09-17', kcal: 650, protein_g: 42, carbs_g: 20, fat_g: 10, water_ml: 750, workout_done: true, weight_kg: 80.5 })
   assert.equal(computeTotals('2026-09-18', [], [], [{ ...w('2026-09-18', 'Pushups', [0]), duration_min: null }]).workout_done, false)
+})
+
+test('date ranges for the dashboard', () => {
+  const thu = new Date(2026, 8, 17)
+  assert.deepEqual(lastNDays(3, thu), ['2026-09-15', '2026-09-16', '2026-09-17'])
+  assert.equal(weekStart(thu), '2026-09-14')
+  assert.equal(weekStart(new Date(2026, 8, 20)), '2026-09-14')
+  assert.equal(weekStart(new Date(2026, 8, 21)), '2026-09-21')
+})
+
+test('heatmap is 8 weeks by 7 days ending this week, with three levels', () => {
+  const thu = new Date(2026, 8, 17)
+  const z = (date: string) => ({ date, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, water_ml: 0, workout_done: false, weight_kg: null })
+  const cols = heatmap([{ ...z('2026-09-17'), workout_done: true }, { ...z('2026-09-16'), water_ml: 250 }, z('2026-09-15')], thu)
+  assert.equal(cols.length, 8)
+  assert.equal(cols[7].length, 7)
+  assert.equal(cols[7][0].date, '2026-09-14')
+  assert.equal(cols[7][6].date, '2026-09-20')
+  assert.equal(cols[0][0].date, '2026-07-27')
+  assert.deepEqual(cols[7].slice(1, 4).map(c => c.level), [0, 1, 2])
 })
 
 test('unit conversion round-trips to a tenth', () => {

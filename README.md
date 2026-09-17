@@ -4,7 +4,7 @@
 
 **A personal trainer that runs on your own API key.**
 
-Paste in an Anthropic key and you get a trainer that builds your plan from a real conversation, reads your meals off a photo, and turns your daily progress pics into a transformation video.
+Paste in an Anthropic, OpenAI or Gemini key and you get a trainer that builds your plan from a real conversation, reads your meals off a photo, and turns your daily progress pics into a transformation video.
 
 [Live app](https://duckyquang.github.io/APT) · [How it works](#how-it-works) · [Bring your own key](#bring-your-own-key) · [Roadmap](#roadmap)
 
@@ -32,7 +32,7 @@ I'm building this for me first. If it's useful to you too, great.
 - **Snap your meals.** Photo in, calories and macros out, logged to today. Estimates are editable, because a photo is a photo. Think Cal AI, except the model is yours.
 - **Water, workouts, all of it logged.** Full history. Ask the trainer how last month went and it can actually answer.
 - **Daily progress photo.** One shot a day. When you've got enough, APT stitches them into a transformation video, on your device.
-- **Dashboard plus chat.** Your day in the middle, the trainer in a sidebar (a bottom sheet on your phone). Black background, white text, no clutter.
+- **Dashboard plus chat.** Calories, macros, water, weight, an 8-week consistency heatmap and today's workout as widgets, the trainer in a sidebar (a bottom sheet on your phone). Black background, white text, no clutter.
 - **Same on every device.** Sign in with Google and your plan, logs and chat are all there. Paste your key on the new device and you're in.
 
 ## How it works
@@ -45,15 +45,15 @@ I'm building this for me first. If it's useful to you too, great.
 
 ## Bring your own key
 
-Anthropic only for now. `claude-opus-5` is the default, `claude-sonnet-5` and `claude-haiku-4-5` are in a dropdown, meal photos work on all three. On a fresh key you'll hit Opus rate limits pretty fast; switch to Sonnet in Settings and it goes away.
+Anthropic, OpenAI or Google Gemini. Pick the provider in Settings, paste that provider's key, and type any model id they offer. `claude-opus-5` is the default on Anthropic; on a fresh key you'll hit rate limits pretty fast, so switch to a cheaper model if that happens. Chat, plans, tools and meal photos all work on all three.
 
-You pay Anthropic directly and can watch usage in their console. Use a dedicated key with a spend limit.
+You pay the provider directly and can watch usage in their console. Use a dedicated key with a spend limit.
 
-Want a different provider? Open an issue. Gemini is next in line, it's about 40 lines.
+Honest note: I've only run the Anthropic path against a real key so far. OpenAI and Gemini are wired to their official SDKs and type-checked, but the first real call is yours. If something breaks, open an issue with the error text.
 
 ## What leaves your browser
 
-- Meal photos go to Anthropic with your key, resized to 1280 px first. That's the only thing a model ever sees.
+- Meal photos go to your chosen provider with your key, resized to 1280 px first. That's the only thing a model ever sees.
 - Progress photos go to your private Supabase storage and nowhere else. The transformation video is rendered on your device and never uploaded.
 - Chat history is stored so it's the same on every device. Images are never in it.
 - Your API key is never stored anywhere but your own browser.
@@ -63,7 +63,7 @@ Cost: whatever Anthropic bills you. I haven't measured a typical day yet. When I
 
 ## Stack
 
-Static React app on GitHub Pages. Supabase for sign-in, database and photo storage. AI calls go browser to Anthropic with your key. Four runtime dependencies. No server. The full design is in [PLAN.md](PLAN.md).
+Static React app on GitHub Pages. Supabase for sign-in, database and photo storage. AI calls go browser to your provider with your key, through the official Anthropic, OpenAI and Gemini SDKs. No server. The full design is in [PLAN.md](PLAN.md).
 
 ## Run it locally
 

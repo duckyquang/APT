@@ -105,6 +105,7 @@ export function App() {
     <div className="shell">
       <header>
         <nav>
+          <a className="wordmark" href="#today">APT</a>
           {TABS.map(t => (
             <a key={t} href={'#' + t} aria-current={t === tab ? 'page' : undefined}>{t}</a>
           ))}

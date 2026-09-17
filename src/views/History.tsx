@@ -71,7 +71,7 @@ export function History(p: { imperial: boolean; version: number }) {
       {error && <p className="error">{error}</p>}
       {photos.length > 0 && (
         <section className="tile">
-          <h2>Progress</h2>
+          <div className="tile-head"><span className="label">Progress photos</span><span className="meta">{photos.length} days</span></div>
           <div className="strip">{photos.map(x => <figure key={x.date}><img src={x.url} alt="" loading="lazy" /><figcaption className="muted">{x.date.slice(5)}</figcaption></figure>)}</div>
           <div className="row wrap">
             <button type="button" onClick={render} disabled={photos.length < 2 || rendering > 0}>
@@ -86,7 +86,7 @@ export function History(p: { imperial: boolean; version: number }) {
       {totals.length === 0 && <p className="muted">Nothing logged in the last 90 days.</p>}
       {months.map(mo => (
         <section key={mo} className="tile">
-          <h2>{month(mo + '-01')}</h2>
+          <div className="tile-head"><span className="label">{month(mo + '-01')}</span></div>
           {totals.filter(t => t.date.startsWith(mo)).map(t => {
             const w = workouts.filter(x => x.date === t.date)
             const m = meals.filter(x => x.date === t.date)

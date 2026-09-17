@@ -1,4 +1,4 @@
-import { WEEKDAYS, type Weekday } from './dates.ts'
+import { WEEKDAYS, dayKey, type Weekday } from './dates.ts'
 import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate, WorkoutRow, WorkoutExercise, MealRow, DailyTotals } from './types.ts'
 
 const hasBlock = (m: { content: unknown }, type: string) =>
@@ -129,6 +129,38 @@ export function computeTotals(date: string, meals: MealRow[], water: { ml: numbe
     workout_done: workouts.some(w => w.duration_min != null),
     weight_kg: log?.weight_kg ?? null,
   }
+}
+
+export function lastNDays(n: number, today = new Date()) {
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(d.getDate() - (n - 1 - i))
+    return dayKey(d)
+  })
+}
+
+// Monday of the week the date falls in
+export function weekStart(d = new Date()) {
+  const x = new Date(d)
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7))
+  return dayKey(x)
+}
+
+export type HeatCell = { date: string; level: 0 | 1 | 2 }
+
+// eight columns of weeks ending with the current one, seven rows Monday to Sunday
+export function heatmap(totals: DailyTotals[], today = new Date()): HeatCell[][] {
+  const by = new Map(totals.map(t => [t.date, t]))
+  const start = new Date(weekStart(today) + 'T12:00:00')
+  start.setDate(start.getDate() - 7 * 7)
+  return Array.from({ length: 8 }, (_, w) => Array.from({ length: 7 }, (_, r) => {
+    const d = new Date(start)
+    d.setDate(start.getDate() + w * 7 + r)
+    const key = dayKey(d)
+    const t = by.get(key)
+    const level = t?.workout_done ? 2 : t && (t.kcal > 0 || t.water_ml > 0 || t.weight_kg != null) ? 1 : 0
+    return { date: key, level }
+  }))
 }
 
 export function parseReps(s: string) {

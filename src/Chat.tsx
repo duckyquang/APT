@@ -104,7 +104,7 @@ export function Chat(p: { userId: string; provider: ProviderId; catalog: Exercis
   return (
     <div className="chat">
       <div className="chat-head">
-        <strong>APT</strong>
+        <span className="label">Trainer</span>
         <button type="button" className="ghost" onClick={clear} disabled={busy || !rows.length}>Clear chat</button>
       </div>
       <div className="chat-log">
