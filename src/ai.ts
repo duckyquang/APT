@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema'
 import { dayKey, weekdayOf, WEEKDAYS } from './dates.ts'
+import { LEVELS } from './logic.ts'
 import { toBase64 } from './image.ts'
 import type { Profile, PlanRow, DailyTotals, MealRow, MealEstimate } from './types.ts'
 
@@ -48,7 +49,7 @@ export const TOOLS: Anthropic.Tool[] = [
         height_cm: num,
         weight_kg: num,
         goal: str,
-        activity_level: { type: 'string', enum: ['sedentary', 'light', 'moderate', 'active', 'very active'] },
+        activity_level: { type: 'string', enum: [...LEVELS] },
         training_days: { type: 'array', items: weekday },
         equipment: str,
         injuries: str,
@@ -166,6 +167,7 @@ export const TOOLS: Anthropic.Tool[] = [
         name: str,
         ...macros,
         fiber_g: num,
+        date: { type: 'string', description: 'YYYY-MM-DD, default today; use it for food eaten before midnight' },
         time: { type: 'string', description: 'HH:MM local, default now' },
       },
     },
@@ -177,7 +179,7 @@ export const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       additionalProperties: false,
       required: ['ml'],
-      properties: { ml: num, time: { type: 'string', description: 'HH:MM local, default now' } },
+      properties: { ml: num, date: { type: 'string', description: 'YYYY-MM-DD, default today' }, time: { type: 'string', description: 'HH:MM local, default now' } },
     },
   },
   {
@@ -277,7 +279,7 @@ How you work:
 export type Context = {
   profile: Profile
   latestWeight: { weight_kg: number; date: string } | null
-  totals: DailyTotals | null
+  totals: DailyTotals
   meals: MealRow[]
   workout: PlanRow | null
   meal: PlanRow | null
@@ -289,7 +291,7 @@ export function buildSystem(c: Context): Anthropic.TextBlockParam[] {
   const lines = [
     `Today is ${dayKey()} (${weekdayOf()}).`,
     `Profile: ${JSON.stringify({ ...profile, latest_weight: c.latestWeight })}`,
-    `Today so far: ${JSON.stringify(c.totals ?? { kcal: 0, water_ml: 0, workout_done: false })}`,
+    `Today so far: ${JSON.stringify(c.totals)}`,
     `Today's meals: ${JSON.stringify(c.meals.map(m => ({ name: m.name, kcal: m.kcal, source: m.source })))}`,
     `Active workout plan: ${c.workout ? JSON.stringify({ title: c.workout.title, ...c.workout.content }) : 'none yet'}`,
     `Active meal plan: ${c.meal ? JSON.stringify({ title: c.meal.title, ...c.meal.content }) : 'none yet'}`,
@@ -323,13 +325,15 @@ export async function chatTurn(opts: {
     let text = ''
     stream.on('text', t => { text += t; opts.onText(text) })
     const msg = await stream.finalMessage()
-    const assistant: Anthropic.MessageParam = { role: 'assistant', content: msg.content }
-    messages.push(assistant)
     const uses = msg.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
     if (msg.stop_reason !== 'tool_use' || !uses.length) {
-      await opts.onRound(assistant)
+      // a turn cut off by max_tokens can carry a half-written tool_use; never persist one without a result
+      const content = msg.content.filter(b => b.type !== 'tool_use')
+      if (content.length) await opts.onRound({ role: 'assistant', content })
       return msg.stop_reason ?? 'end_turn'
     }
+    const assistant: Anthropic.MessageParam = { role: 'assistant', content: msg.content }
+    messages.push(assistant)
     const results: Anthropic.ToolResultBlockParam[] = []
     for (const u of uses) {
       const r = await opts.runTool(u.name, u.input)

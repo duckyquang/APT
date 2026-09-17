@@ -55,7 +55,7 @@ export function Chat(p: { userId: string; catalog: Exercise[]; videos: Videos; o
     setBusy(true)
     try {
       const [userRow] = await insertMessages([{ role: 'user', content: [{ type: 'text', text }] }])
-      const history = trimWindow([...rows, userRow].map(r => ({ role: r.role, content: r.content })))
+      const history = trimWindow([...rows, userRow].slice(-40).map(r => ({ role: r.role, content: r.content })))
       setRows(r => [...r, userRow])
       const [profile, weight, totals, meals, workout, meal] = await Promise.all([
         loadProfile(), latestWeight(), dayTotals(dayKey()), dayMeals(dayKey()), latestPlan('workout'), latestPlan('meal'),
@@ -76,6 +76,7 @@ export function Chat(p: { userId: string; catalog: Exercise[]; videos: Videos; o
       })
       if (stop === 'refusal') setError('The model declined to answer that.')
       if (stop === 'max_rounds') setError('Stopped after 8 tool calls. Ask again to continue.')
+      if (stop === 'max_tokens') setError('That reply was cut off. Ask again to continue.')
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -86,15 +87,19 @@ export function Chat(p: { userId: string; catalog: Exercise[]; videos: Videos; o
 
   async function clear() {
     if (!confirm('Delete the whole chat history?')) return
-    await clearChat(p.userId)
-    setRows([])
+    try {
+      await clearChat(p.userId)
+      setRows([])
+    } catch (e) {
+      setError(errorMessage(e))
+    }
   }
 
   return (
     <div className="chat">
       <div className="chat-head">
         <strong>APT</strong>
-        <button type="button" className="ghost" onClick={clear} disabled={!rows.length}>Clear chat</button>
+        <button type="button" className="ghost" onClick={clear} disabled={busy || !rows.length}>Clear chat</button>
       </div>
       <div className="chat-log">
         {rows.length === 0 && !busy && <p className="muted">Say hi. APT will ask what it needs to know, then write your first week.</p>}

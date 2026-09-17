@@ -25,17 +25,19 @@ export async function makeVideo(frames: { url: string; label: string }[], onProg
   c.width = W
   c.height = H
   const ctx = c.getContext('2d')!
-  const imgs = await Promise.all(frames.map(f => loadImage(f.url)))
   const rec = new MediaRecorder(c.captureStream(30), { mimeType: mime, videoBitsPerSecond: 5e6 })
   const chunks: Blob[] = []
   rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data) }
   const stopped = new Promise<void>(r => { rec.onstop = () => r() })
+  let next = loadImage(frames[0].url)
   rec.start()
-  for (let i = 0; i < imgs.length; i++) {
+  for (let i = 0; i < frames.length; i++) {
+    const img = await next
+    if (i + 1 < frames.length) next = loadImage(frames[i + 1].url)
     onProgress(i + 1)
     const t0 = performance.now()
     while (performance.now() - t0 < holdMs) {
-      ctx.drawImage(imgs[i], 0, 0, W, H)
+      ctx.drawImage(img, 0, 0, W, H)
       ctx.fillStyle = 'rgba(0,0,0,0.5)'
       ctx.fillRect(0, H - 90, W, 90)
       ctx.fillStyle = '#fff'

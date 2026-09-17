@@ -7,6 +7,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "connect-src 'self' https://api.anthropic.com https://*.supabase.co",
   "img-src 'self' blob: data: https://*.supabase.co https://raw.githubusercontent.com",
+  "media-src 'self' blob:",
   "frame-src https://www.youtube-nocookie.com",
   "object-src 'none'",
   "base-uri 'self'",

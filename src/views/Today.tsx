@@ -1,7 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
-import { dayTotals, dayMeals, dayLog, latestWeight, latestPlan, insertMeal, deleteMeal, insertWater, upsertDailyLog, uploadPhoto, signedUrls } from '../db.ts'
-import { analyzeMeal } from '../ai.ts'
-import { sanitizeMeal } from '../logic.ts'
+import { dayTotals, dayMeals, progressPhotoPath, latestWeight, latestPlan, insertMeal, deleteMeal, insertWater, upsertDailyLog, uploadPhoto, signedUrls, zeroTotals } from '../db.ts'
+import { analyzeMeal, errorMessage } from '../ai.ts'
+import { sanitizeMeal, toKg, fromKg } from '../logic.ts'
 import { resizeToJpeg, coverCrop } from '../image.ts'
 import { dayKey, weekdayOf } from '../dates.ts'
 import { MealDialog } from './MealDialog.tsx'
@@ -24,15 +24,13 @@ function Ring({ value, max, label, unit }: { value: number; max?: number; label:
   )
 }
 
-const LB = 0.45359237
-
 export function Today(p: { userId: string; profile: Profile; version: number; onChange: () => void }) {
   const date = dayKey()
   const imperial = p.profile.units === 'imperial'
-  const [totals, setTotals] = useState<DailyTotals | null>(null)
+  const unit = imperial ? 'lb' : 'kg'
+  const [totals, setTotals] = useState<DailyTotals>(() => zeroTotals(date))
   const [meals, setMeals] = useState<MealRow[]>([])
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
-  const [log, setLog] = useState<{ weight_kg: number | null; progress_photo_path: string | null } | null>(null)
   const [progressUrl, setProgressUrl] = useState('')
   const [weight, setWeight] = useState<{ weight_kg: number; date: string } | null>(null)
   const [weightIn, setWeightIn] = useState('')
@@ -42,17 +40,26 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([dayTotals(date), dayMeals(date), dayLog(date), latestWeight(), latestPlan('meal')])
-      .then(async ([t, m, l, w, mp]) => {
-        setTotals(t); setMeals(m); setLog(l); setWeight(w)
+    let alive = true
+    Promise.all([dayTotals(date), dayMeals(date), progressPhotoPath(date), latestWeight(), latestPlan('meal')])
+      .then(async ([t, m, path, w, mp]) => {
+        const [th, pu] = await Promise.all([
+          signedUrls('meals', m.map(x => x.photo_path).filter((x): x is string => !!x)),
+          path ? signedUrls('progress', [path]) : ({} as Record<string, string>),
+        ])
+        if (!alive) return
+        setTotals(t)
+        setMeals(m)
+        setWeight(w)
         setPlanned(mp ? ((mp.content as MealPlan).days.find(d => d.weekday === weekdayOf())?.meals ?? []) : [])
-        setThumbs(await signedUrls('meals', m.map(x => x.photo_path).filter((x): x is string => !!x)))
-        setProgressUrl(l?.progress_photo_path ? (await signedUrls('progress', [l.progress_photo_path]))[l.progress_photo_path] ?? '' : '')
+        setThumbs(th)
+        setProgressUrl(path ? pu[path] ?? '' : '')
       })
-      .catch(e => setError(e.message))
+      .catch(e => alive && setError(e.message))
+    return () => { alive = false }
   }, [p.version])
 
-  const run = (fn: () => Promise<void>) => fn().then(p.onChange).catch(e => setError(e.message))
+  const run = (fn: () => Promise<void>) => fn().then(p.onChange).catch(e => setError(errorMessage(e)))
 
   async function pickMeal(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -65,7 +72,7 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
       const est = sanitizeMeal(await analyzeMeal(jpeg, '', p.profile.model))
       setDialog({ photo: jpeg, estimate: est, analyzing: false, error: '' })
     } catch (err) {
-      setDialog(d => ({ photo: d?.photo ?? null, estimate: null, analyzing: false, error: err instanceof Error ? err.message : String(err) }))
+      setDialog(d => ({ photo: d?.photo ?? null, estimate: null, analyzing: false, error: errorMessage(err) }))
     }
   }
 
@@ -91,9 +98,9 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
   const addWater = (ml: number) => run(() => insertWater(ml))
 
   const saveWeight = () => {
-    const kg = imperial ? +weightIn * LB : +weightIn
+    const kg = toKg(+weightIn, imperial)
     if (!kg) return
-    run(async () => { await upsertDailyLog(date, { weight_kg: Math.round(kg * 10) / 10 }); setWeightIn('') })
+    run(async () => { await upsertDailyLog(date, { weight_kg: kg }); setWeightIn('') })
   }
 
   async function pickProgress(e: ChangeEvent<HTMLInputElement>) {
@@ -108,20 +115,18 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
     })
   }
 
-  const t = totals ?? { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, water_ml: 0, workout_done: false, weight_kg: null }
   const target = p.profile.targets
-  const showW = (kg: number) => imperial ? `${Math.round(kg / LB * 10) / 10} lb` : `${kg} kg`
 
   return (
     <div className="stack">
       {error && <p className="error">{error}</p>}
       <section className="tile rings">
-        <Ring value={t.kcal} max={target.kcal} label="calories" unit="kcal" />
-        <Ring value={t.water_ml} max={target.water_ml ?? 2500} label="water" unit="ml" />
-        <div className="macros muted">P {Math.round(t.protein_g)} g · C {Math.round(t.carbs_g)} g · F {Math.round(t.fat_g)} g</div>
+        <Ring value={totals.kcal} max={target.kcal} label="calories" unit="kcal" />
+        <Ring value={totals.water_ml} max={target.water_ml ?? 2500} label="water" unit="ml" />
+        <div className="macros muted">P {Math.round(totals.protein_g)} g · C {Math.round(totals.carbs_g)} g · F {Math.round(totals.fat_g)} g</div>
       </section>
 
-      <WorkoutCard version={p.version} onChange={p.onChange} />
+      <WorkoutCard imperial={imperial} version={p.version} onChange={p.onChange} />
 
       <section className="tile">
         <div className="row"><h2>Meals</h2>
@@ -161,9 +166,9 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
 
       <section className="tile">
         <h2>Weight</h2>
-        <p className="muted">{weight ? `Last weigh-in ${showW(weight.weight_kg)} on ${weight.date}` : 'No weigh-in yet.'}</p>
+        <p className="muted">{weight ? `Last weigh-in ${fromKg(weight.weight_kg, imperial)} ${unit} on ${weight.date}` : 'No weigh-in yet.'}</p>
         <div className="row">
-          <input type="number" step="any" value={weightIn} onChange={e => setWeightIn(e.target.value)} placeholder={imperial ? 'lb' : 'kg'} className="short" />
+          <input type="number" step="any" value={weightIn} onChange={e => setWeightIn(e.target.value)} placeholder={unit} className="short" />
           <button type="button" onClick={saveWeight}>Save</button>
         </div>
       </section>
@@ -172,7 +177,7 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
         <h2>Progress photo</h2>
         <p className="muted">One a day, same spot, same light. They become your transformation video.</p>
         {progressUrl && <img className="progress" src={progressUrl} alt="" />}
-        <label className="button">{log?.progress_photo_path ? 'Retake today' : 'Take today\'s photo'}
+        <label className="button">{progressUrl ? 'Retake today' : 'Take today\'s photo'}
           <input type="file" accept="image/*" capture="user" onChange={pickProgress} hidden />
         </label>
       </section>

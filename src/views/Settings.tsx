@@ -1,22 +1,30 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { MODELS, validateKey, setKey, errorMessage } from '../ai.ts'
 import { updateProfile, signOut } from '../db.ts'
 import { applyProfile } from '../tools.ts'
 import { WEEKDAYS, type Weekday } from '../dates.ts'
+import { LEVELS, IN, toKg } from '../logic.ts'
 import type { Profile } from '../types.ts'
-
-const LB = 0.45359237
-const IN = 2.54
-const LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very active']
 
 export function Settings(p: { userId: string; profile: Profile; apiKey: string; onKey: (k: string) => void; onChange: () => void }) {
   const [key, setK] = useState(p.apiKey)
   const [keyStatus, setKeyStatus] = useState('')
   const [f, setF] = useState<Profile>(p.profile)
+  const [dirty, setDirty] = useState<Set<keyof Profile>>(new Set())
   const [weight, setWeight] = useState('')
   const [status, setStatus] = useState('')
   const imperial = f.units === 'imperial'
-  const set = (k: keyof Profile, v: unknown) => setF({ ...f, [k]: v })
+
+  // the trainer can write the profile while this form is open; take its values for anything not being edited here
+  useEffect(() => {
+    setF(cur => ({ ...p.profile, ...Object.fromEntries([...dirty].map(k => [k, cur[k]])) }))
+  }, [p.profile])
+
+  const set = (k: keyof Profile, v: unknown) => {
+    setF(cur => ({ ...cur, [k]: v }))
+    setDirty(d => new Set(d).add(k))
+  }
+  const text = (k: keyof Profile) => (e: { target: { value: string } }) => set(k, e.target.value || null)
 
   async function saveKey() {
     setKeyStatus('Checking…')
@@ -32,18 +40,23 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
   }
 
   async function changeModel(model: string) {
-    await updateProfile(p.userId, { model })
-    set('model', model)
-    p.onChange()
+    try {
+      await updateProfile(p.userId, { model })
+      setF(cur => ({ ...cur, model }))
+      p.onChange()
+    } catch (e) {
+      setStatus(errorMessage(e))
+    }
   }
 
   async function save(e: FormEvent) {
     e.preventDefault()
     setStatus('')
-    const { user_id, onboarded_at, model, updated_at, ...patch } = f
-    const w = weight ? (imperial ? +weight * LB : +weight) : undefined
+    const patch = Object.fromEntries([...dirty].filter(k => k !== 'model').map(k => [k, f[k]])) as Partial<Profile>
+    const w = weight ? toKg(+weight, imperial) : undefined
     try {
       await applyProfile(p.userId, patch, w)
+      setDirty(new Set())
       setWeight('')
       p.onChange()
       setStatus('Saved.')
@@ -77,13 +90,13 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
 
       <form className="tile stack" onSubmit={save}>
         <h2>Profile</h2>
-        <label>Name<input value={f.name ?? ''} onChange={e => set('name', e.target.value)} /></label>
+        <label>Name<input value={f.name ?? ''} onChange={text('name')} /></label>
         <label>Sex
-          <select value={f.sex ?? ''} onChange={e => set('sex', e.target.value || null)}>
+          <select value={f.sex ?? ''} onChange={text('sex')}>
             <option value="">choose</option><option>male</option><option>female</option><option>other</option>
           </select>
         </label>
-        <label>Birth date<input type="date" value={f.birth_date ?? ''} onChange={e => set('birth_date', e.target.value || null)} /></label>
+        <label>Birth date<input type="date" value={f.birth_date ?? ''} onChange={text('birth_date')} /></label>
         <label>Units
           <select value={f.units} onChange={e => set('units', e.target.value)}>
             <option value="metric">metric</option><option value="imperial">imperial</option>
@@ -92,14 +105,14 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
         <label>Height ({imperial ? 'in' : 'cm'})
           <input type="number" step="any"
             value={f.height_cm == null ? '' : imperial ? Math.round(f.height_cm / IN) : f.height_cm}
-            onChange={e => set('height_cm', e.target.value === '' ? null : imperial ? +e.target.value * IN : +e.target.value)} />
+            onChange={e => set('height_cm', e.target.value === '' ? null : imperial ? Math.round(+e.target.value * IN) : +e.target.value)} />
         </label>
         <label>Weigh-in today ({imperial ? 'lb' : 'kg'})
           <input type="number" step="any" value={weight} onChange={e => setWeight(e.target.value)} placeholder="blank to skip" />
         </label>
-        <label>Goal<input value={f.goal ?? ''} onChange={e => set('goal', e.target.value)} placeholder="e.g. lose 5 kg by December" /></label>
+        <label>Goal<input value={f.goal ?? ''} onChange={text('goal')} placeholder="e.g. lose 5 kg by December" /></label>
         <label>Activity level
-          <select value={f.activity_level ?? ''} onChange={e => set('activity_level', e.target.value || null)}>
+          <select value={f.activity_level ?? ''} onChange={text('activity_level')}>
             <option value="">choose</option>{LEVELS.map(a => <option key={a}>{a}</option>)}
           </select>
         </label>
@@ -113,16 +126,16 @@ export function Settings(p: { userId: string; profile: Profile; apiKey: string; 
             ))}
           </div>
         </fieldset>
-        <label>Equipment<input value={f.equipment ?? ''} onChange={e => set('equipment', e.target.value)} placeholder="e.g. full gym, or dumbbells and a bench" /></label>
-        <label>Injuries<input value={f.injuries ?? ''} onChange={e => set('injuries', e.target.value)} /></label>
-        <label>Dietary preferences<input value={f.dietary_prefs ?? ''} onChange={e => set('dietary_prefs', e.target.value)} /></label>
+        <label>Equipment<input value={f.equipment ?? ''} onChange={text('equipment')} placeholder="e.g. full gym, or dumbbells and a bench" /></label>
+        <label>Injuries<input value={f.injuries ?? ''} onChange={text('injuries')} /></label>
+        <label>Dietary preferences<input value={f.dietary_prefs ?? ''} onChange={text('dietary_prefs')} /></label>
         <div className="row">
           <button className="primary">Save profile</button>
           <small>{status}</small>
         </div>
       </form>
 
-      <button type="button" onClick={() => signOut()}>Sign out</button>
+      <button type="button" onClick={() => signOut().catch(e => setStatus(errorMessage(e)))}>Sign out</button>
     </div>
   )
 }

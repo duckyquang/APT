@@ -5,7 +5,7 @@ create table public.profiles (
   name text,
   sex text,
   birth_date date,
-  height_cm numeric,
+  height_cm numeric check (height_cm > 0),
   goal text,
   activity_level text,
   training_days text[] not null default '{}',
@@ -36,7 +36,7 @@ create table public.workouts (
   plan_id uuid references public.plans(id) on delete set null,
   day_name text,
   exercises jsonb not null default '[]',
-  duration_min int,
+  duration_min int check (duration_min >= 0),
   notes text,
   created_at timestamptz not null default now()
 );
@@ -55,6 +55,7 @@ create table public.meals (
   carbs_g numeric not null default 0,
   fat_g numeric not null default 0,
   fiber_g numeric not null default 0,
+  check (kcal >= 0 and protein_g >= 0 and carbs_g >= 0 and fat_g >= 0 and fiber_g >= 0),
   confidence text,
   assumptions text,
   source text not null check (source in ('photo', 'manual', 'agent', 'plan')),
@@ -67,14 +68,14 @@ create table public.water (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   date date not null,
   at timestamptz not null default now(),
-  ml int not null
+  ml int not null check (ml > 0)
 );
 create index water_by_day on public.water (user_id, date desc);
 
 create table public.daily_logs (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   date date not null,
-  weight_kg numeric,
+  weight_kg numeric check (weight_kg > 0),
   progress_photo_path text,
   notes text,
   primary key (user_id, date)

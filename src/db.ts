@@ -63,9 +63,12 @@ export async function savePlan(kind: 'workout' | 'meal', title: string, content:
   unwrap(await sb.from('plans').insert({ kind, title, content }))
 }
 
+export const zeroTotals = (date: string): DailyTotals =>
+  ({ date, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, water_ml: 0, workout_done: false, weight_kg: null })
+
 export async function dayTotals(date: string) {
   const rows = unwrap(await sb.from('daily_totals').select('*').eq('date', date)) as DailyTotals[]
-  return rows[0] ?? null
+  return rows[0] ?? zeroTotals(date)
 }
 
 export async function dayMeals(date: string) {
@@ -105,11 +108,9 @@ export async function insertWater(ml: number, at = new Date()) {
   unwrap(await sb.from('water').insert({ ml, at: at.toISOString(), date: dayKey(at) }))
 }
 
-export async function dayLog(date: string) {
-  const rows = unwrap(
-    await sb.from('daily_logs').select('weight_kg, progress_photo_path').eq('date', date),
-  ) as { weight_kg: number | null; progress_photo_path: string | null }[]
-  return rows[0] ?? null
+export async function progressPhotoPath(date: string) {
+  const rows = unwrap(await sb.from('daily_logs').select('progress_photo_path').eq('date', date)) as { progress_photo_path: string | null }[]
+  return rows[0]?.progress_photo_path ?? null
 }
 
 export async function uploadPhoto(bucket: 'meals' | 'progress', path: string, blob: Blob) {

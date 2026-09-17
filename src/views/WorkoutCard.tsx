@@ -1,80 +1,99 @@
 import { useEffect, useRef, useState } from 'react'
 import { latestPlan, dayWorkout, upsertWorkout, recentWorkouts } from '../db.ts'
-import { lastWeights, sessionFromPlan } from '../logic.ts'
+import { lastWeights, sessionFromPlan, toKg, fromKg } from '../logic.ts'
 import { dayKey, weekdayOf } from '../dates.ts'
-import type { WorkoutPlan, WorkoutRow, PlanRow } from '../types.ts'
+import type { WorkoutPlan, WorkoutRow, WorkoutSet } from '../types.ts'
 
-export function WorkoutCard(p: { version: number; onChange: () => void }) {
+type State = { row: WorkoutRow; rests: number[] } | { note: string }
+
+export function WorkoutCard(p: { imperial: boolean; version: number; onChange: () => void }) {
   const date = dayKey()
-  const [plan, setPlan] = useState<PlanRow | null>(null)
-  const [row, setRow] = useState<WorkoutRow | null>(null)
-  const [last, setLast] = useState(new Map<string, number>())
+  const [s, setS] = useState<State>()
   const [rest, setRest] = useState(0)
   const [error, setError] = useState('')
-  const timer = useRef<number>(0)
+  const latest = useRef<WorkoutRow | null>(null)
+  const queue = useRef(Promise.resolve())
 
   useEffect(() => {
+    let alive = true
     Promise.all([latestPlan('workout'), dayWorkout(date), recentWorkouts(10)])
-      .then(([pl, r, recent]) => { setPlan(pl); setRow(r); setLast(lastWeights(recent)) })
-      .catch(e => setError(e.message))
+      .then(([plan, saved, recent]) => {
+        if (!alive) return
+        const day = plan ? (plan.content as WorkoutPlan).days.find(d => d.weekday === weekdayOf()) : undefined
+        const rests = day?.exercises.map(x => x.rest_s) ?? []
+        const row = saved ?? (plan && day ? {
+          id: crypto.randomUUID(), date, plan_id: plan.id, day_name: day.name,
+          exercises: sessionFromPlan(day, lastWeights(recent)), duration_min: null, notes: null, created_at: new Date().toISOString(),
+        } : null)
+        latest.current = row
+        setS(row ? { row, rests } : { note: plan ? 'Rest day.' : 'No plan yet. Ask APT for one.' })
+      })
+      .catch(e => alive && setError(e.message))
+    return () => { alive = false }
   }, [p.version])
 
   useEffect(() => {
     if (rest <= 0) return
-    timer.current = window.setTimeout(() => setRest(r => r - 1), 1000)
-    return () => clearTimeout(timer.current)
+    const t = window.setTimeout(() => setRest(r => r - 1), 1000)
+    return () => clearTimeout(t)
   }, [rest])
 
-  const day = plan ? (plan.content as WorkoutPlan).days.find(d => d.weekday === weekdayOf()) : undefined
-  if (!plan) return <section className="tile"><h2>Workout</h2><p className="muted">No plan yet. Ask APT for one.</p></section>
-  if (!day && !row) return <section className="tile"><h2>Workout</h2><p className="muted">Rest day.</p></section>
+  if (!s) return null
+  if ('note' in s) return <section className="tile"><h2>Workout</h2><p className="muted">{s.note}</p></section>
+  const { row, rests } = s
+  const done = row.duration_min != null
+  const unit = p.imperial ? 'lb' : 'kg'
 
-  const current: WorkoutRow = row ?? {
-    id: crypto.randomUUID(), date, plan_id: plan.id, day_name: day!.name,
-    exercises: sessionFromPlan(day!, last), duration_min: null, notes: null, created_at: new Date().toISOString(),
+  // writes go out one at a time, so a slow early upsert can never land on top of a later one
+  function persist(next: WorkoutRow) {
+    queue.current = queue.current.then(() => upsertWorkout(next)).catch(e => setError(e.message))
+    return queue.current
   }
-  const done = current.duration_min != null
-
-  function save(next: WorkoutRow) {
-    setRow(next)
-    upsertWorkout(next).catch(e => setError(e.message))
+  function update(next: WorkoutRow, save: boolean) {
+    latest.current = next
+    setS({ row: next, rests })
+    if (save) persist(next)
   }
-
-  function setField(ei: number, si: number, patch: Partial<WorkoutRow['exercises'][number]['sets'][number]>) {
-    const exercises = current.exercises.map((x, i) => i !== ei ? x : { ...x, sets: x.sets.map((s, j) => j !== si ? s : { ...s, ...patch }) })
-    save({ ...current, exercises })
-    if (patch.done) setRest(day?.exercises[ei]?.rest_s ?? 90)
+  function setField(ei: number, si: number, patch: Partial<WorkoutSet>, save: boolean) {
+    const cur = latest.current!
+    const exercises = cur.exercises.map((x, i) => i !== ei ? x : { ...x, sets: x.sets.map((set, j) => j !== si ? set : { ...set, ...patch }) })
+    update({ ...cur, exercises }, save)
+    if (patch.done) setRest(rests[ei] ?? 90)
   }
-
   function finish() {
-    const minutes = Math.max(1, Math.round((Date.now() - new Date(current.created_at).getTime()) / 60000))
-    const next = { ...current, duration_min: minutes }
-    setRow(next)
+    const cur = latest.current!
+    const minutes = Math.max(1, Math.round((Date.now() - new Date(cur.created_at).getTime()) / 60000))
+    update({ ...cur, duration_min: minutes }, true)
     setRest(0)
-    upsertWorkout(next).then(p.onChange).catch(e => setError(e.message))
+    queue.current.then(p.onChange)
   }
 
-  const ticked = current.exercises.reduce((a, x) => a + x.sets.filter(s => s.done).length, 0)
-  const total = current.exercises.reduce((a, x) => a + x.sets.length, 0)
+  const ticked = row.exercises.reduce((a, x) => a + x.sets.filter(set => set.done).length, 0)
+  const total = row.exercises.reduce((a, x) => a + x.sets.length, 0)
 
   return (
     <section className="tile">
       <div className="row">
-        <h2>{current.day_name}</h2>
-        {done ? <span className="muted">Done, {current.duration_min} min</span> : rest > 0 ? <span className="rest">rest {rest}s</span> : <span className="muted">{ticked}/{total} sets</span>}
+        <h2>{row.day_name}</h2>
+        {done ? <span className="muted">Done{row.duration_min ? `, ${row.duration_min} min` : ''}</span>
+          : rest > 0 ? <span className="rest">rest {rest}s</span>
+          : <span className="muted">{ticked}/{total} sets</span>}
       </div>
       {error && <p className="error">{error}</p>}
-      {current.exercises.map((x, ei) => (
+      {row.exercises.map((x, ei) => (
         <div key={ei} className="ex">
           <h3>{x.name}</h3>
-          {x.sets.map((s, si) => (
+          {x.sets.map((set, si) => (
             <div key={si} className="set">
               <span className="muted">{si + 1}</span>
-              <input type="number" value={s.reps} onChange={e => setField(ei, si, { reps: +e.target.value })} disabled={done} aria-label="reps" />
+              <input type="number" value={set.reps} disabled={done} aria-label="reps"
+                onChange={e => setField(ei, si, { reps: +e.target.value }, false)} onBlur={() => persist(latest.current!)} />
               <span className="muted">×</span>
-              <input type="number" step="any" value={s.weight_kg} onChange={e => setField(ei, si, { weight_kg: +e.target.value })} disabled={done} aria-label="kg" />
-              <span className="muted">kg</span>
-              <input type="checkbox" checked={s.done} onChange={e => setField(ei, si, { done: e.target.checked })} disabled={done} aria-label="done" />
+              <input type="number" step="any" value={fromKg(set.weight_kg, p.imperial)} disabled={done} aria-label={unit}
+                onChange={e => setField(ei, si, { weight_kg: toKg(+e.target.value, p.imperial) }, false)} onBlur={() => persist(latest.current!)} />
+              <span className="muted">{unit}</span>
+              <input type="checkbox" checked={set.done} disabled={done} aria-label="done"
+                onChange={e => setField(ei, si, { done: e.target.checked }, true)} />
             </div>
           ))}
         </div>

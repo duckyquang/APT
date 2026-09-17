@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type Anthropic from '@anthropic-ai/sdk'
-import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan } from './logic.ts'
+import { trimWindow, pickProfileFields, missingFields, validateWorkoutPlan, validateMealPlan, sanitizeMeal, parseReps, lastWeights, sessionFromPlan, when, toKg, fromKg } from './logic.ts'
 import type { Exercise, Profile, MealEstimate, WorkoutRow } from './types.ts'
 
 const user = (text: string): Anthropic.MessageParam => ({ role: 'user', content: [{ type: 'text', text }] })
@@ -25,6 +25,24 @@ test('trimWindow keeps a complete pair', () => {
   assert.equal(w.length, 4)
 })
 
+test('trimWindow drops an orphan tool_use in the middle and an orphan tool_result', () => {
+  const w = trimWindow([user('hi'), toolUse, user('next'), assistant('ok'), toolResult, user('bye')])
+  assert.deepEqual(w.map(m => m.role), ['user', 'user', 'assistant', 'user'])
+})
+
+test('when parses date and time and ignores junk', () => {
+  const d = when('2026-09-16', '21:05')
+  assert.equal(d.getFullYear(), 2026); assert.equal(d.getMonth(), 8); assert.equal(d.getDate(), 16)
+  assert.equal(d.getHours(), 21); assert.equal(d.getMinutes(), 5)
+  assert.equal(when('nope', '25:99').getDate(), new Date().getDate())
+})
+
+test('unit conversion round-trips to a tenth', () => {
+  assert.equal(toKg(180, true), 81.65)
+  assert.equal(fromKg(81.65, true), 180)
+  assert.equal(toKg(80.55, false), 80.55)
+})
+
 test('pickProfileFields whitelists and cleans training_days', () => {
   const p = pickProfileFields({ name: 'Q', model: 'evil', onboarded_at: 'x', training_days: ['mon', 'funday'], weight_kg: 80 })
   assert.deepEqual(p, { name: 'Q', training_days: ['mon'] })
@@ -39,6 +57,7 @@ const profile: Profile = {
 test('missingFields', () => {
   assert.deepEqual(missingFields(profile, true), [])
   assert.deepEqual(missingFields({ ...profile, goal: null, training_days: [] }, false), ['goal', 'training_days', 'weight_kg'])
+  assert.deepEqual(missingFields({ ...profile, goal: '' }, true), ['goal'])
 })
 
 const catalog: Exercise[] = [
@@ -82,10 +101,10 @@ test('sanitizeMeal clamps negatives and recomputes totals from items', () => {
   assert.equal(s.assumptions, 'grilled, no sauce')
 })
 
-test('sanitizeMeal recomputes kcal from macros when they disagree badly', () => {
+test('sanitizeMeal flags kcal that disagree with the macros but keeps them', () => {
   const s = sanitizeMeal({ ...est, items: [{ ...est.items[0], kcal: 900 }] })
-  assert.equal(s.totals.kcal, Math.round(4 * 4 + 4 * 50 + 9 * 0.5))
-  assert.match(s.assumptions, /recomputed/)
+  assert.equal(s.totals.kcal, 900)
+  assert.match(s.assumptions, /disagree/)
 })
 
 test('sanitizeMeal keeps clamped totals when there are no items', () => {

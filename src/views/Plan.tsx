@@ -27,17 +27,23 @@ function ExerciseRow({ x, ex, video }: { x: PlanExercise; ex?: Exercise; video?:
 export function Plan(p: { catalog: Exercise[]; videos: Videos; version: number }) {
   const [kind, setKind] = useState<'workout' | 'meal'>('workout')
   const [plans, setPlans] = useState<{ workout: PlanRow | null; meal: PlanRow | null }>()
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([latestPlan('workout'), latestPlan('meal')]).then(([workout, meal]) => setPlans({ workout, meal }))
+    let alive = true
+    Promise.all([latestPlan('workout'), latestPlan('meal')])
+      .then(([workout, meal]) => alive && setPlans({ workout, meal }))
+      .catch(e => alive && setError(e.message))
+    return () => { alive = false }
   }, [p.version])
 
-  if (!plans) return null
+  if (!plans) return error ? <p className="error">{error}</p> : null
   const byId = new Map(p.catalog.map(e => [e.id, e]))
   const row = plans[kind]
 
   return (
     <div className="stack">
+      {error && <p className="error">{error}</p>}
       <div className="seg">
         {(['workout', 'meal'] as const).map(k => (
           <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>{k === 'workout' ? 'Workout' : 'Meals'}</button>

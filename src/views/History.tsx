@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { rangeTotals, rangeWorkouts, rangeMeals, rangePhotos, signedUrls } from '../db.ts'
+import { errorMessage } from '../ai.ts'
+import { fromKg } from '../logic.ts'
 import { dayKey } from '../dates.ts'
 import type { DailyTotals, WorkoutRow, MealRow } from '../types.ts'
 import { makeVideo } from '../video.ts'
@@ -7,25 +9,31 @@ import { makeVideo } from '../video.ts'
 const month = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 const dayLabel = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })
 
-export function History(p: { version: number }) {
-  const [totals, setTotals] = useState<DailyTotals[]>([])
+export function History(p: { imperial: boolean; version: number }) {
+  const [totals, setTotals] = useState<DailyTotals[]>()
   const [workouts, setWorkouts] = useState<WorkoutRow[]>([])
   const [meals, setMeals] = useState<MealRow[]>([])
   const [photos, setPhotos] = useState<{ date: string; url: string }[]>([])
   const [error, setError] = useState('')
   const [video, setVideo] = useState<{ blob: Blob; url: string } | null>(null)
   const [rendering, setRendering] = useState(0)
+  const unit = p.imperial ? 'lb' : 'kg'
 
   useEffect(() => {
+    let alive = true
     const to = dayKey()
     const from = dayKey(new Date(Date.now() - 90 * 864e5))
     Promise.all([rangeTotals(from, to), rangeWorkouts(from, to), rangeMeals(from, to), rangePhotos(from, to)])
       .then(async ([t, w, m, ph]) => {
-        setTotals(t); setWorkouts(w); setMeals(m)
         const urls = await signedUrls('progress', ph.map(x => x.progress_photo_path))
+        if (!alive) return
+        setTotals(t)
+        setWorkouts(w)
+        setMeals(m)
         setPhotos(ph.map(x => ({ date: x.date, url: urls[x.progress_photo_path] })).filter(x => x.url))
       })
-      .catch(e => setError(e.message))
+      .catch(e => alive && setError(e.message))
+    return () => { alive = false }
   }, [p.version])
 
   async function render() {
@@ -35,7 +43,7 @@ export function History(p: { version: number }) {
       const blob = await makeVideo(photos.map(x => ({ url: x.url, label: x.date })), setRendering)
       setVideo(v => { if (v) URL.revokeObjectURL(v.url); return { blob, url: URL.createObjectURL(blob) } })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorMessage(e))
     } finally {
       setRendering(0)
     }
@@ -55,6 +63,7 @@ export function History(p: { version: number }) {
     }
   }
 
+  if (!totals) return error ? <p className="error">{error}</p> : null
   const months = [...new Set(totals.map(t => t.date.slice(0, 7)))]
 
   return (
@@ -85,13 +94,18 @@ export function History(p: { version: number }) {
               <details key={t.date} className="exercise">
                 <summary>
                   <span>{dayLabel(t.date)}</span>
-                  <span className="muted">{t.kcal} kcal · {(t.water_ml / 1000).toFixed(1)} L{t.workout_done ? ' · workout' : ''}{t.weight_kg != null ? ` · ${t.weight_kg} kg` : ''}</span>
+                  <span className="muted">
+                    {t.kcal} kcal · {(t.water_ml / 1000).toFixed(1)} L{t.workout_done ? ' · workout' : ''}
+                    {t.weight_kg != null ? ` · ${fromKg(t.weight_kg, p.imperial)} ${unit}` : ''}
+                  </span>
                 </summary>
                 <p className="muted">P {Math.round(t.protein_g)} · C {Math.round(t.carbs_g)} · F {Math.round(t.fat_g)}</p>
                 {w.map(x => (
                   <div key={x.id}>
-                    <h3>{x.day_name}{x.duration_min != null && <span className="muted"> · {x.duration_min} min</span>}</h3>
-                    <ul>{x.exercises.map((e, i) => <li key={i}>{e.name} <span className="muted">{e.sets.filter(s => s.done).map(s => `${s.reps}×${s.weight_kg}`).join(', ')}</span></li>)}</ul>
+                    <h3>{x.day_name}{x.duration_min ? <span className="muted"> · {x.duration_min} min</span> : null}</h3>
+                    <ul>{x.exercises.map((e, i) => (
+                      <li key={i}>{e.name} <span className="muted">{e.sets.filter(s => s.done).map(s => `${s.reps}×${fromKg(s.weight_kg, p.imperial)}`).join(', ')} {unit}</span></li>
+                    ))}</ul>
                   </div>
                 ))}
                 {m.length > 0 && <ul>{m.map(x => <li key={x.id}>{x.name} <span className="muted">{x.kcal} kcal</span></li>)}</ul>}

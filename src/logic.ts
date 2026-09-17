@@ -5,13 +5,20 @@ import type { Exercise, Profile, WorkoutPlan, MealPlan, MealEstimate, WorkoutRow
 const hasBlock = (m: Anthropic.MessageParam, type: string) =>
   Array.isArray(m.content) && m.content.some(b => b.type === type)
 
-// the API rejects a window that starts on a tool_result or ends on an unanswered tool_use
+// the API rejects a tool_use without its tool_result and a tool_result without its tool_use;
+// a turn cut off by max_tokens or a closed tab can leave either behind, so drop orphans anywhere
 export function trimWindow(msgs: Anthropic.MessageParam[]) {
-  let start = 0
-  while (start < msgs.length && !(msgs[start].role === 'user' && !hasBlock(msgs[start], 'tool_result'))) start++
-  let end = msgs.length
-  if (end > start && msgs[end - 1].role === 'assistant' && hasBlock(msgs[end - 1], 'tool_use')) end--
-  return msgs.slice(start, end)
+  const out: Anthropic.MessageParam[] = []
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i]
+    const next = msgs[i + 1]
+    const prev = out[out.length - 1]
+    if (m.role === 'assistant' && hasBlock(m, 'tool_use') && !(next?.role === 'user' && hasBlock(next, 'tool_result'))) continue
+    if (m.role === 'user' && hasBlock(m, 'tool_result') && !(prev?.role === 'assistant' && hasBlock(prev, 'tool_use'))) continue
+    out.push(m)
+  }
+  while (out.length && !(out[0].role === 'user' && !hasBlock(out[0], 'tool_result'))) out.shift()
+  return out
 }
 
 export const PROFILE_FIELDS = [
@@ -20,6 +27,20 @@ export const PROFILE_FIELDS = [
 ] as const
 
 export const REQUIRED = ['height_cm', 'birth_date', 'sex', 'goal', 'training_days'] as const
+export const LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very active'] as const
+
+export const LB = 0.45359237
+export const IN = 2.54
+export const toKg = (n: number, imperial: boolean) => Math.round((imperial ? n * LB : n) * 100) / 100
+export const fromKg = (kg: number, imperial: boolean) => Math.round((imperial ? kg / LB : kg) * 10) / 10
+
+// optional YYYY-MM-DD and HH:MM from a tool call; anything malformed falls back to now
+export function when(date?: string, time?: string) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(date ?? '') ? new Date(date + 'T12:00:00') : new Date()
+  const m = time?.match(/^([01]?\d|2[0-3]):([0-5]\d)$/)
+  if (m) d.setHours(+m[1], +m[2], 0, 0)
+  return d
+}
 
 export function pickProfileFields(input: Record<string, unknown>) {
   const out: Record<string, unknown> = {}
@@ -33,7 +54,7 @@ export function pickProfileFields(input: Record<string, unknown>) {
 export function missingFields(p: Profile, hasWeight: boolean) {
   const missing: string[] = REQUIRED.filter(k => {
     const v = p[k]
-    return v == null || (Array.isArray(v) && v.length === 0)
+    return v == null || v === '' || (Array.isArray(v) && v.length === 0)
   })
   if (!hasWeight) missing.push('weight_kg')
   return missing
@@ -90,9 +111,9 @@ export function sanitizeMeal(est: MealEstimate): MealEstimate {
     : { kcal: Math.round(nz(t.kcal)), protein_g: r1(nz(t.protein_g)), carbs_g: r1(nz(t.carbs_g)), fat_g: r1(nz(t.fat_g)), fiber_g: r1(nz(t.fiber_g)) }
   let assumptions = (est.assumptions ?? '').trim()
   const fromMacros = 4 * totals.protein_g + 4 * totals.carbs_g + 9 * totals.fat_g
+  // alcohol and sugar alcohols carry energy outside the three macros, so flag a mismatch rather than rewrite it
   if (totals.kcal && Math.abs(fromMacros - totals.kcal) > totals.kcal * 0.3) {
-    totals.kcal = Math.round(fromMacros)
-    assumptions = `${assumptions} Calories recomputed from macros.`.trim()
+    assumptions = `${assumptions} Calories and macros disagree; macros alone suggest about ${Math.round(fromMacros)} kcal.`.trim()
   }
   return { items, totals, confidence: est.confidence ?? 'low', assumptions }
 }

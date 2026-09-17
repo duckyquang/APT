@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { sb, signIn, ensureProfile, loadProfile } from './db.ts'
+import { sb, signIn, ensureProfile, loadProfile, SUPABASE_URL } from './db.ts'
 import { getKey } from './ai.ts'
 import { loadCatalog } from './catalog.ts'
 import { Chat } from './Chat.tsx'
@@ -22,18 +22,20 @@ export function App() {
   const [session, setSession] = useState<Session | null>()
   const [tab, setTab] = useState<Tab>(tabFromHash)
   const [chatOpen, setChatOpen] = useState(false)
+  const [ready, setReady] = useState(false)
   const [profile, setProfile] = useState<Profile>()
   const [data, setData] = useState<{ catalog: Exercise[]; videos: Videos }>()
   const [apiKey, setApiKey] = useState(getKey)
   const [version, setVersion] = useState(0)
   const [error, setError] = useState('')
+  const bump = () => setVersion(v => v + 1)
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: auth } = sb.auth.onAuthStateChange((_event, s) => setSession(s))
     const onHash = () => setTab(tabFromHash())
     addEventListener('hashchange', onHash)
-    const onVisible = () => { if (document.visibilityState === 'visible') setVersion(v => v + 1) }
+    const onVisible = () => { if (document.visibilityState === 'visible') bump() }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       auth.subscription.unsubscribe()
@@ -45,13 +47,17 @@ export function App() {
   useEffect(() => { loadCatalog().then(setData).catch(e => setError(e.message)) }, [])
 
   const userId = session?.user.id
-  const reload = useCallback(() => {
-    if (userId) loadProfile().then(setProfile).catch(e => setError(e.message))
-  }, [userId])
   useEffect(() => {
-    if (userId) ensureProfile(userId).then(reload).catch(e => setError(e.message))
-  }, [userId, reload])
-  const bump = useCallback(() => { setVersion(v => v + 1); reload() }, [reload])
+    setReady(false)
+    if (userId) ensureProfile(userId).then(() => setReady(true)).catch(e => setError(e.message))
+  }, [userId])
+
+  useEffect(() => {
+    if (!ready) return
+    let alive = true
+    loadProfile().then(p => alive && setProfile(p)).catch(e => alive && setError(e.message))
+    return () => { alive = false }
+  }, [ready, version])
 
   // first run: no key means Settings; key but not onboarded means Settings with the chat open
   const onboarded = !!profile?.onboarded_at
@@ -69,22 +75,31 @@ export function App() {
       <main className="gate">
         <h1>APT</h1>
         <p className="muted">A personal trainer that runs on your own API key.</p>
-        <button className="primary" onClick={() => signIn().then(({ error }) => error && setError(error.message))}>Sign in with Google</button>
+        {SUPABASE_URL.includes('YOUR-PROJECT') ? (
+          <p className="muted">No Supabase project wired up yet. See PLAN.md, Phase 0.</p>
+        ) : (
+          <button className="primary" onClick={() => signIn().then(({ error }) => error && setError(error.message))}>Sign in with Google</button>
+        )}
         {error && <p className="error">{error}</p>}
       </main>
     )
   }
-  if (error) return <main className="gate"><p className="error">{error}</p></main>
-  if (!profile || !data) return null
+  if (!profile) {
+    return error ? (
+      <main className="gate">
+        <p className="error">{error}</p>
+        <button type="button" onClick={() => { setError(''); bump() }}>Try again</button>
+      </main>
+    ) : null
+  }
 
   const view =
     tab === 'today' ? <Today userId={session.user.id} profile={profile} version={version} onChange={bump} /> :
-    tab === 'plan' ? <Plan catalog={data.catalog} videos={data.videos} version={version} /> :
+    tab === 'plan' ? (data ? <Plan catalog={data.catalog} videos={data.videos} version={version} /> : <p className="muted">Loading exercises…</p>) :
     tab === 'settings' ? (
-      <Settings key={profile.updated_at} userId={session.user.id} profile={profile} apiKey={apiKey}
-        onKey={k => { setApiKey(k); bump() }} onChange={bump} />
+      <Settings userId={session.user.id} profile={profile} apiKey={apiKey} onKey={k => { setApiKey(k); bump() }} onChange={bump} />
     ) :
-    <History version={version} />
+    <History imperial={profile.units === 'imperial'} version={version} />
 
   return (
     <div className="shell">
@@ -96,11 +111,12 @@ export function App() {
         </nav>
       </header>
       <main>
+        {error && <p className="notice error" onClick={() => setError('')}>{error}</p>}
         {!apiKey && tab !== 'settings' && <p className="notice">Add your Anthropic key in Settings to start.</p>}
         {view}
       </main>
       <aside className={chatOpen ? 'open' : ''}>
-        <Chat userId={session.user.id} catalog={data.catalog} videos={data.videos} onChange={bump} />
+        {data ? <Chat userId={session.user.id} catalog={data.catalog} videos={data.videos} onChange={bump} /> : <p className="muted">Loading exercises…</p>}
       </aside>
       <button className="fab" onClick={() => setChatOpen(o => !o)} aria-label="Toggle chat">💬</button>
     </div>
