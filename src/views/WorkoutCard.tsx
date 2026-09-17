@@ -12,11 +12,21 @@ export function WorkoutCard(p: { imperial: boolean; version: number; onChange: (
   const [rest, setRest] = useState(0)
   const [error, setError] = useState('')
   const latest = useRef<WorkoutRow | null>(null)
+  const dirty = useRef(false)
   const queue = useRef(Promise.resolve())
+
+  // writes go out one at a time, so a slow early upsert can never land on top of a later one
+  function persist(next: WorkoutRow) {
+    dirty.current = false
+    queue.current = queue.current.then(() => upsertWorkout(next)).catch(e => setError(e.message))
+    return queue.current
+  }
 
   useEffect(() => {
     let alive = true
-    Promise.all([latestPlan('workout'), dayWorkout(date), recentWorkouts(10)])
+    // flush anything typed but not yet saved, and let queued writes land before reading the row back
+    const flushed = dirty.current && latest.current ? persist(latest.current) : queue.current
+    flushed.then(() => Promise.all([latestPlan('workout'), dayWorkout(date), recentWorkouts(10)]))
       .then(([plan, saved, recent]) => {
         if (!alive) return
         const day = plan ? (plan.content as WorkoutPlan).days.find(d => d.weekday === weekdayOf()) : undefined
@@ -44,15 +54,11 @@ export function WorkoutCard(p: { imperial: boolean; version: number; onChange: (
   const done = row.duration_min != null
   const unit = p.imperial ? 'lb' : 'kg'
 
-  // writes go out one at a time, so a slow early upsert can never land on top of a later one
-  function persist(next: WorkoutRow) {
-    queue.current = queue.current.then(() => upsertWorkout(next)).catch(e => setError(e.message))
-    return queue.current
-  }
   function update(next: WorkoutRow, save: boolean) {
     latest.current = next
     setS({ row: next, rests })
     if (save) persist(next)
+    else dirty.current = true
   }
   function setField(ei: number, si: number, patch: Partial<WorkoutSet>, save: boolean) {
     const cur = latest.current!

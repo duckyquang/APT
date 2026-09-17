@@ -329,7 +329,7 @@ export async function chatTurn(opts: {
     if (msg.stop_reason !== 'tool_use' || !uses.length) {
       // a turn cut off by max_tokens can carry a half-written tool_use; never persist one without a result
       const content = msg.content.filter(b => b.type !== 'tool_use')
-      if (content.length) await opts.onRound({ role: 'assistant', content })
+      if (content.some(b => b.type === 'text')) await opts.onRound({ role: 'assistant', content })
       return msg.stop_reason ?? 'end_turn'
     }
     const assistant: Anthropic.MessageParam = { role: 'assistant', content: msg.content }

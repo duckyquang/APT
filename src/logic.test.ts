@@ -40,7 +40,7 @@ test('when parses date and time and ignores junk', () => {
 test('unit conversion round-trips to a tenth', () => {
   assert.equal(toKg(180, true), 81.65)
   assert.equal(fromKg(81.65, true), 180)
-  assert.equal(toKg(80.55, false), 80.55)
+  assert.equal(toKg(80.55, false), 80.6)
 })
 
 test('pickProfileFields whitelists and cleans training_days', () => {

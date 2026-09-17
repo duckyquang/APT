@@ -49,6 +49,7 @@ export function App() {
   const userId = session?.user.id
   useEffect(() => {
     setReady(false)
+    setProfile(undefined)
     if (userId) ensureProfile(userId).then(() => setReady(true)).catch(e => setError(e.message))
   }, [userId])
 
@@ -88,7 +89,7 @@ export function App() {
     return error ? (
       <main className="gate">
         <p className="error">{error}</p>
-        <button type="button" onClick={() => { setError(''); bump() }}>Try again</button>
+        <button type="button" onClick={() => location.reload()}>Try again</button>
       </main>
     ) : null
   }

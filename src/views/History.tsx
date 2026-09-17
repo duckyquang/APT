@@ -103,9 +103,10 @@ export function History(p: { imperial: boolean; version: number }) {
                 {w.map(x => (
                   <div key={x.id}>
                     <h3>{x.day_name}{x.duration_min ? <span className="muted"> · {x.duration_min} min</span> : null}</h3>
-                    <ul>{x.exercises.map((e, i) => (
-                      <li key={i}>{e.name} <span className="muted">{e.sets.filter(s => s.done).map(s => `${s.reps}×${fromKg(s.weight_kg, p.imperial)}`).join(', ')} {unit}</span></li>
-                    ))}</ul>
+                    <ul>{x.exercises.map((e, i) => {
+                      const done = e.sets.filter(s => s.done)
+                      return <li key={i}>{e.name} <span className="muted">{done.length ? `${done.map(s => `${s.reps}×${fromKg(s.weight_kg, p.imperial)}`).join(', ')} ${unit}` : ''}</span></li>
+                    })}</ul>
                   </div>
                 ))}
                 {m.length > 0 && <ul>{m.map(x => <li key={x.id}>{x.name} <span className="muted">{x.kcal} kcal</span></li>)}</ul>}

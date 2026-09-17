@@ -31,7 +31,7 @@ export const LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very active'
 
 export const LB = 0.45359237
 export const IN = 2.54
-export const toKg = (n: number, imperial: boolean) => Math.round((imperial ? n * LB : n) * 100) / 100
+export const toKg = (n: number, imperial: boolean) => (imperial ? Math.round(n * LB * 100) / 100 : Math.round(n * 10) / 10)
 export const fromKg = (kg: number, imperial: boolean) => Math.round((imperial ? kg / LB : kg) * 10) / 10
 
 // optional YYYY-MM-DD and HH:MM from a tool call; anything malformed falls back to now
