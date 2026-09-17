@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react'
 import { latestPlan, rangeWorkouts } from '../db.ts'
 import { STILLS } from '../catalog.ts'
 import { weekStart } from '../logic.ts'
-import { dayKey, weekdayOf, type Weekday } from '../dates.ts'
+import { dayKey, weekdayOf, WEEK, DAY_NAMES } from '../dates.ts'
 import { Label } from './widgets.tsx'
 import type { Exercise, Videos, PlanRow, WorkoutPlan, MealPlan, PlanExercise, WorkoutRow } from '../types.ts'
 
-const ORDER: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-const NAMES = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' }
 const TINTS = ['#2dd4bf', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#22c55e', '#eab308']
 
 function ExerciseRow({ x, ex, video }: { x: PlanExercise; ex?: Exercise; video?: string }) {
@@ -48,7 +46,7 @@ export function Plan(p: { catalog: Exercise[]; videos: Videos; version: number }
   if (!plans) return error ? <p className="error">{error}</p> : null
   const byId = new Map(p.catalog.map(e => [e.id, e]))
   const row = plans[kind]
-  const today = ORDER.indexOf(weekdayOf())
+  const today = WEEK.indexOf(weekdayOf())
 
   return (
     <div className="stack">
@@ -65,8 +63,8 @@ export function Plan(p: { catalog: Exercise[]; videos: Videos; version: number }
 
       {row && kind === 'workout' && (
         <div className="cards">
-          {[...(row.content as WorkoutPlan).days].sort((a, b) => ORDER.indexOf(a.weekday) - ORDER.indexOf(b.weekday)).map(d => {
-            const idx = ORDER.indexOf(d.weekday)
+          {[...(row.content as WorkoutPlan).days].sort((a, b) => WEEK.indexOf(a.weekday) - WEEK.indexOf(b.weekday)).map(d => {
+            const idx = WEEK.indexOf(d.weekday)
             const session = week.find(w => weekdayOf(new Date(w.date + 'T12:00:00')) === d.weekday)
             const sets = session?.exercises.flatMap(x => x.sets) ?? []
             const planned = d.exercises.reduce((a, x) => a + x.sets, 0)
@@ -76,7 +74,7 @@ export function Plan(p: { catalog: Exercise[]; videos: Videos; version: number }
             const mins = Math.round(d.exercises.reduce((a, x) => a + x.sets * (x.rest_s + 45), 0) / 60)
             return (
               <div key={d.weekday} className="plan-card" style={{ '--tint': TINTS[idx] } as React.CSSProperties}>
-                <span className="meta">{NAMES[d.weekday]}</span>
+                <span className="meta">{DAY_NAMES[d.weekday]}</span>
                 <h3>{d.name}</h3>
                 <div className="sub">{d.exercises.length} exercises · {planned} sets · ~{mins} min</div>
                 <div className="label">Progress</div>
@@ -96,7 +94,7 @@ export function Plan(p: { catalog: Exercise[]; videos: Videos; version: number }
 
       {row && kind === 'meal' && (row.content as MealPlan).days.map(d => (
         <section key={d.weekday} className="tile">
-          <Label meta={`${d.meals.reduce((a, m) => a + m.kcal, 0)} kcal`}>{NAMES[d.weekday]}</Label>
+          <Label meta={`${d.meals.reduce((a, m) => a + m.kcal, 0)} kcal`}>{DAY_NAMES[d.weekday]}</Label>
           {d.meals.map((m, i) => (
             <details key={i} className="exercise">
               <summary>

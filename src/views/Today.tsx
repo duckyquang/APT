@@ -3,15 +3,13 @@ import { dayTotals, dayMeals, progressPhotoPath, latestWeight, latestPlan, range
 import { analyzeMeal, errorMessage, getKey } from '../ai.ts'
 import { sanitizeMeal, toKg, fromKg, lastNDays, heatmap } from '../logic.ts'
 import { resizeToJpeg, coverCrop } from '../image.ts'
-import { dayKey, weekdayOf, type Weekday } from '../dates.ts'
+import { dayKey, weekdayOf, WEEK, DAY_NAMES } from '../dates.ts'
 import { MealDialog } from './MealDialog.tsx'
 import { WorkoutCard } from './WorkoutCard.tsx'
 import { Label, Big, Delta, Bars, Spark, Segments, Heat } from './widgets.tsx'
 import type { Profile, DailyTotals, MealRow, MealPlan, WorkoutPlan, PlanMeal, MealEstimate } from '../types.ts'
 
 const short = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short' })
-const ORDER: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-const NAMES = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' }
 
 export function Today(p: { userId: string; profile: Profile; version: number; onChange: () => void }) {
   const date = dayKey()
@@ -124,15 +122,16 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
   )
 
   // the next training day after today (today itself if it is not finished)
-  const todayIdx = ORDER.indexOf(weekdayOf())
+  const todayIdx = WEEK.indexOf(weekdayOf())
   const next = workoutPlan?.days
-    .map(d => ({ d, away: (ORDER.indexOf(d.weekday) - todayIdx + 7) % 7 }))
+    .map(d => ({ d, away: (WEEK.indexOf(d.weekday) - todayIdx + 7) % 7 }))
     .filter(x => x.away > 0 || !totals.workout_done)
     .sort((a, b) => a.away - b.away)[0]
 
   return (
-    <div className="today-grid">
-      {error && <p className="error err">{error}</p>}
+    <>
+      {error && <p className="error">{error}</p>}
+      <div className="today-grid">
 
       <section className="tile cal">
         <Label meta="7d">Calories</Label>
@@ -166,7 +165,7 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
           ? <Delta value={Math.round((fromKg(weight.weight_kg, imperial) - fromKg(prev.weight_kg!, imperial)) * 10) / 10} unit={unit} label="vs a week ago" />
           : <div className="delta">{weight ? `last weigh-in ${weight.date}` : 'no weigh-in yet'}</div>}
         <Spark points={weighIns.filter(t => t.date >= lastNDays(30)[0]).map(t => ({ label: t.date, value: fromKg(t.weight_kg!, imperial) }))} unit={unit} />
-        <div className="row" style={{ marginTop: 10 }}>
+        <div className="row wrap" style={{ marginTop: 10 }}>
           <input type="number" step="any" value={weightIn} onChange={e => setWeightIn(e.target.value)} placeholder={unit} className="short" />
           <button type="button" onClick={saveWeight}>Weigh in</button>
         </div>
@@ -207,7 +206,7 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
       </section>
 
       <section className="tile next">
-        <Label meta={next ? (next.away === 0 ? 'today' : next.away === 1 ? 'tomorrow' : NAMES[next.d.weekday]) : ''}>Up next</Label>
+        <Label meta={next ? (next.away === 0 ? 'today' : next.away === 1 ? 'tomorrow' : DAY_NAMES[next.d.weekday]) : ''}>Up next</Label>
         {next ? (
           <>
             <Big value={next.d.name} />
@@ -227,10 +226,11 @@ export function Today(p: { userId: string; profile: Profile; version: number; on
         </label>
       </section>
 
+      </div>
       {dialog && (
         <MealDialog estimate={dialog.estimate} photo={dialog.photo} analyzing={dialog.analyzing} error={dialog.error}
           onSave={saveMeal} onClose={() => setDialog(null)} />
       )}
-    </div>
+    </>
   )
 }

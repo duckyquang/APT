@@ -110,15 +110,16 @@ export function Settings(p: { userId: string; profile: Profile; onChange: () => 
       <section className="tile" style={accent('var(--purple)')}>
         <Label meta={f.model}>AI provider</Label>
         <Segmented value={f.provider} options={IDS} onChange={changeProvider} />
-        <ModelPicker models={PROVIDERS[f.provider].models} value={f.model} onChange={changeModel} />
+        <ModelPicker key={f.provider} models={PROVIDERS[f.provider].models} value={f.model} onChange={changeModel} />
         <Row label="API key" hint="Stays in this browser. Use a dedicated key with a spend limit.">
           {editingKey || !savedKey ? (
             <>
-              <input type="password" value={keyDraft} onChange={e => setKeyDraft(e.target.value)} placeholder={`paste your ${PROVIDERS[f.provider].label} key`} autoComplete="off" />
+              <input type="password" value={keyDraft} onChange={e => setKeyDraft(e.target.value)} placeholder={`paste your ${PROVIDERS[f.provider].label} key`} autoComplete="off"
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (keyDraft.trim()) saveKey() } }} />
               <button type="button" className="primary" onClick={saveKey} disabled={!keyDraft.trim() || keyState.kind === 'checking'}>
                 {keyState.kind === 'checking' ? 'Checking…' : 'Save key'}
               </button>
-              {savedKey && <button type="button" className="ghost" onClick={() => setEditingKey(false)}>Cancel</button>}
+              {savedKey && <button type="button" className="ghost" onClick={() => { setEditingKey(false); setKeyState({ kind: '', msg: '' }) }}>Cancel</button>}
             </>
           ) : (
             <>

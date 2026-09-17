@@ -128,7 +128,7 @@ export function App() {
         {!keyOk && tab !== 'settings' && <p className="notice">Add your API key in Settings to start.</p>}
         {view}
       </main>
-      <aside>
+      <aside inert={!chatOpen}>
         <div className="aside-in">
           {data ? <Chat userId={session.user.id} provider={profile.provider} catalog={data.catalog} videos={data.videos} onChange={bump} /> : <p className="muted" style={{ padding: 16 }}>Loading exercises…</p>}
         </div>

@@ -15,7 +15,8 @@ export function Stepper(p: { value: number | ''; onChange: (v: number | '') => v
   const step = p.step ?? 1
   const num = typeof p.value === 'number' ? p.value : 0
   const round = (n: number) => Math.round(n / step) * step
-  const bump = (d: number) => p.onChange(Math.max(p.min ?? 0, +round(num + d * step).toFixed(2)))
+  // an empty field steps up to one step and never down to zero
+  const bump = (d: number) => p.onChange(p.value === '' ? (d > 0 ? step : '') : Math.max(p.min ?? 0, +round(num + d * step).toFixed(2)))
   return (
     <div className="stepper">
       <button type="button" aria-label="decrease" onClick={() => bump(-1)}>−</button>
